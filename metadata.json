@@ -1,0 +1,8 @@
+{
+  "name": "Arranger Pro",
+  "description": "Arranger keyboard and style engine application.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
