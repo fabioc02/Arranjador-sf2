@@ -95,6 +95,20 @@ fun ExternalMidiControlPanel(onOpenRhythmCreator: (() -> Unit)? = null) {
                     }
 
                     Button(
+                        onClick = {
+                            val nextPoly = if (MidiState.polyphonyMode == 128) 64 else 128
+                            MidiState.setPolyphony(nextPoly)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (MidiState.polyphonyMode == 128) Color(0xFFE65100) else Color(0xFF5D4037)
+                        ),
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Text("⚡ ${MidiState.polyphonyMode}V", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
                         onClick = { showSoundFontHelpDialog = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF512DA8)),
                         modifier = Modifier.height(32.dp),
@@ -218,10 +232,20 @@ fun PartControlSection(
                     state.soundFontVoice = sf
                     state.voiceName = sf.name
                     MidiState.ensureSoundFontAudioActive(context)
+                    MidiState.soundFontSynth.setChannelVoice(channelIndex, sf)
                     if (MidiState.soundOutputEngine == SoundOutputEngine.YAMAHA_HARDWARE) {
                         MidiState.setSoundOutput(SoundOutputEngine.SOUNDFONT_INTERNAL, context)
                     }
                     state.sendVoiceConfigToDevice()
+
+                    // Preload and pin active rhythm tracks + 3 live performance parts
+                    val rhythmVoices = com.example.MidiRhythmState.tracks.mapNotNull { it.soundFontVoice }
+                    val liveVoices = listOf(
+                        VoiceEngine.channels[VoiceEngine.CH_RIGHT1].soundFontVoice,
+                        VoiceEngine.channels[VoiceEngine.CH_RIGHT2].soundFontVoice,
+                        VoiceEngine.channels[VoiceEngine.CH_LEFT].soundFontVoice
+                    ).filterNotNull()
+                    MidiState.soundFontRepository.preloadActiveRhythmAndParts(rhythmVoices, liveVoices)
                 },
                 onOpenSoundFontDialog = onOpenSoundFontDialog
             )

@@ -1,0 +1,17 @@
+[
+{
+  "directory": "/app/applet/app/.cxx/Debug/5k26361o/armeabi-v7a",
+  "command": "/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=armv7-none-linux-androideabi24 --sysroot=/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Darranger_native_audio_EXPORTS -I/app/applet/app/src/main/cpp -isystem /opt/gradle/.gradle/caches/9.3.1/transforms/f50e03369f17b75a9d57023344b262df/transformed/oboe-1.8.1/prefab/modules/oboe/include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC -std=c++17 -o CMakeFiles/arranger_native_audio.dir/SynthCore.cpp.o -c /app/applet/app/src/main/cpp/SynthCore.cpp",
+  "file": "/app/applet/app/src/main/cpp/SynthCore.cpp"
+},
+{
+  "directory": "/app/applet/app/.cxx/Debug/5k26361o/armeabi-v7a",
+  "command": "/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=armv7-none-linux-androideabi24 --sysroot=/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Darranger_native_audio_EXPORTS -I/app/applet/app/src/main/cpp -isystem /opt/gradle/.gradle/caches/9.3.1/transforms/f50e03369f17b75a9d57023344b262df/transformed/oboe-1.8.1/prefab/modules/oboe/include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC -std=c++17 -o CMakeFiles/arranger_native_audio.dir/OboeAudioEngine.cpp.o -c /app/applet/app/src/main/cpp/OboeAudioEngine.cpp",
+  "file": "/app/applet/app/src/main/cpp/OboeAudioEngine.cpp"
+},
+{
+  "directory": "/app/applet/app/.cxx/Debug/5k26361o/armeabi-v7a",
+  "command": "/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=armv7-none-linux-androideabi24 --sysroot=/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Darranger_native_audio_EXPORTS -I/app/applet/app/src/main/cpp -isystem /opt/gradle/.gradle/caches/9.3.1/transforms/f50e03369f17b75a9d57023344b262df/transformed/oboe-1.8.1/prefab/modules/oboe/include -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -std=c++17 -fno-limit-debug-info  -fPIC -std=c++17 -o CMakeFiles/arranger_native_audio.dir/OboeAudioEngineJNI.cpp.o -c /app/applet/app/src/main/cpp/OboeAudioEngineJNI.cpp",
+  "file": "/app/applet/app/src/main/cpp/OboeAudioEngineJNI.cpp"
+}
+]

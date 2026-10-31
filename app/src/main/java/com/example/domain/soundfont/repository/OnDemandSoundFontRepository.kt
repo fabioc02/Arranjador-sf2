@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
  * for presets currently assigned to playing rhythm tracks or live solo voices.
  */
 class OnDemandSoundFontRepository(
-    private val maxLoadedSoundFonts: Int = 10,
+    private val maxLoadedSoundFonts: Int = 32,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO)
 ) {
 
@@ -30,8 +30,28 @@ class OnDemandSoundFontRepository(
     // Access order tracking for LRU eviction
     private val accessOrder = java.util.concurrent.CopyOnWriteArrayList<String>()
 
+    // Keys pinned to RAM (active rhythm tracks + live Right 1, Right 2, Left parts)
+    private val pinnedKeys = ConcurrentHashMap.newKeySet<String>()
+
     // Fallback default preset (synthesized or generic GM)
     var defaultPreset: SoundFontPreset? = null
+
+    val availableVoices = androidx.compose.runtime.mutableStateListOf<com.example.domain.soundfont.model.SoundFontVoice>()
+
+    init {
+        // Register built-in starter soundfonts so instruments and audition are immediately available
+        val starters = StarterSoundFontLibrary.getAllStarterVoices()
+        starters.forEach { voice ->
+            val meta = StarterSoundFontLibrary.getStarterMetadata(voice.filePath)
+            if (meta != null) {
+                catalog[voice.filePath] = meta
+                if (defaultPreset == null && meta.presets.isNotEmpty()) {
+                    defaultPreset = meta.presets.first()
+                }
+            }
+        }
+        availableVoices.addAll(starters)
+    }
 
     /**
      * Registers a SoundFont file (.sf2 or .sfz). Parses only headers.
@@ -57,30 +77,56 @@ class OnDemandSoundFontRepository(
         }
     }
 
-    val availableVoices = androidx.compose.runtime.mutableStateListOf<com.example.domain.soundfont.model.SoundFontVoice>()
-
-    fun getCatalogMetadata(filePath: String): SoundFontMetadata? = catalog[filePath]
+    fun getCatalogMetadata(filePath: String): SoundFontMetadata? {
+        val cached = catalog[filePath]
+        if (cached != null) return cached
+        if (filePath.startsWith(StarterSoundFontLibrary.STARTER_PREFIX)) {
+            val starter = StarterSoundFontLibrary.getStarterMetadata(filePath)
+            if (starter != null) {
+                catalog[filePath] = starter
+                return starter
+            }
+        }
+        val file = File(filePath)
+        if (file.exists()) {
+            return registerSoundFont(file)
+        }
+        return null
+    }
 
     /**
      * Determines the musical category of a soundfont by its parent folder or name.
      */
     fun detectCategory(file: File, presetName: String): String {
         val parent = file.parentFile?.name ?: ""
-        val combined = "$parent ${file.nameWithoutExtension} $presetName".lowercase()
+        return SoundFontCategoryManager.detectDefaultCategory(file.name, presetName, parent)
+    }
 
-        return when {
-            combined.contains("drum") || combined.contains("kit") || combined.contains("perc") || combined.contains("bateria") -> "Baterias"
-            combined.contains("e.piano") || combined.contains("epiano") || combined.contains("rhodes") || combined.contains("wurli") || combined.contains("clav") || combined.contains("tine") -> "E.Piano"
-            combined.contains("piano") || combined.contains("grand") || combined.contains("upright") || combined.contains("ac.piano") -> "Piano"
-            combined.contains("organ") || combined.contains("b3") || combined.contains("drawbar") || combined.contains("órgao") || combined.contains("órgão") -> "Órgão"
-            combined.contains("bass") || combined.contains("baixo") || combined.contains("fretless") || combined.contains("slap") -> "Baixo"
-            combined.contains("guitar") || combined.contains("violao") || combined.contains("violão") || combined.contains("gtr") || combined.contains("nylon") || combined.contains("steel") -> "Guitarra"
-            combined.contains("string") || combined.contains("violin") || combined.contains("cello") || combined.contains("cordas") || combined.contains("orch") || combined.contains("ensemble") -> "Cordas"
-            combined.contains("brass") || combined.contains("trumpet") || combined.contains("trompete") || combined.contains("trombone") || combined.contains("horn") || combined.contains("metais") -> "Metais"
-            combined.contains("sax") || combined.contains("flute") || combined.contains("flauta") || combined.contains("oboe") || combined.contains("clarinet") -> "Sax / Palhetas"
-            combined.contains("pad") || combined.contains("choir") || combined.contains("coral") || combined.contains("vox") || combined.contains("voice") || combined.contains("warm") -> "Pad / Coro"
-            combined.contains("lead") || combined.contains("synth") || combined.contains("saw") || combined.contains("square") || combined.contains("teclado") -> "Sintetizador"
-            else -> if (parent.isNotBlank() && !parent.equals("soundfonts", ignoreCase = true) && !parent.equals("files", ignoreCase = true)) parent else "Outros"
+    fun updateVoiceCategory(voiceId: String, newCategory: String) {
+        synchronized(availableVoices) {
+            val index = availableVoices.indexOfFirst { it.id == voiceId }
+            if (index != -1) {
+                val old = availableVoices[index]
+                availableVoices[index] = old.copy(category = newCategory)
+            }
+        }
+    }
+
+    fun refreshCategories() {
+        synchronized(availableVoices) {
+            val updated = availableVoices.map { voice ->
+                val file = java.io.File(voice.filePath)
+                val parent = file.parentFile?.name ?: ""
+                val cat = SoundFontCategoryManager.getEffectiveCategory(
+                    voiceId = voice.id,
+                    fileName = file.name,
+                    presetName = voice.name,
+                    parentFolderName = parent
+                )
+                if (voice.category != cat) voice.copy(category = cat) else voice
+            }
+            availableVoices.clear()
+            availableVoices.addAll(updated)
         }
     }
 
@@ -108,12 +154,18 @@ class OnDemandSoundFontRepository(
                 if (meta != null) {
                     list.add(meta)
                     val sizeStr = formatFileSize(file.length())
+                    val parentFolder = file.parentFile?.name ?: ""
                     
                     if (meta.presets.isNotEmpty()) {
                         for (preset in meta.presets) {
                             val voiceName = if (meta.presets.size == 1) file.nameWithoutExtension else preset.name.ifBlank { file.nameWithoutExtension }
-                            val category = detectCategory(file, voiceName)
                             val voiceId = "${file.absolutePath}:${preset.bank}:${preset.program}"
+                            val category = SoundFontCategoryManager.getEffectiveCategory(
+                                voiceId = voiceId,
+                                fileName = file.name,
+                                presetName = voiceName,
+                                parentFolderName = parentFolder
+                            )
                             newVoices.add(
                                 com.example.domain.soundfont.model.SoundFontVoice(
                                     id = voiceId,
@@ -131,8 +183,13 @@ class OnDemandSoundFontRepository(
                     } else {
                         // Fallback single voice entry
                         val voiceName = file.nameWithoutExtension
-                        val category = detectCategory(file, voiceName)
                         val voiceId = "${file.absolutePath}:0:0"
+                        val category = SoundFontCategoryManager.getEffectiveCategory(
+                            voiceId = voiceId,
+                            fileName = file.name,
+                            presetName = voiceName,
+                            parentFolderName = parentFolder
+                        )
                         newVoices.add(
                             com.example.domain.soundfont.model.SoundFontVoice(
                                 id = voiceId,
@@ -148,6 +205,14 @@ class OnDemandSoundFontRepository(
                         )
                     }
                 }
+            }
+        }
+
+        // Always keep starter voices available alongside imported soundfonts
+        val starters = StarterSoundFontLibrary.getAllStarterVoices()
+        for (st in starters) {
+            if (newVoices.none { it.id == st.id }) {
+                newVoices.add(st)
             }
         }
 
@@ -171,6 +236,15 @@ class OnDemandSoundFontRepository(
         if (cached != null) {
             touchAccess(cacheKey)
             return cached
+        }
+
+        if (metadata.filePath.startsWith(StarterSoundFontLibrary.STARTER_PREFIX)) {
+            val starterPreset = StarterSoundFontLibrary.getStarterPreset(metadata.filePath, bank, program)
+            if (starterPreset != null) {
+                loadedPresetCache[cacheKey] = starterPreset
+                touchAccess(cacheKey)
+                return starterPreset
+            }
         }
 
         // Perform lazy load of PCM samples
@@ -253,11 +327,50 @@ class OnDemandSoundFontRepository(
 
     private fun evictOldest() {
         if (accessOrder.isEmpty()) return
-        val oldestKey = accessOrder.removeAt(0)
-        val evictedPreset = loadedPresetCache.remove(oldestKey)
+        // Never evict pinned presets (current rhythm tracks or active Right 1, Right 2, Left parts)
+        val candidateKey = accessOrder.find { !pinnedKeys.contains(it) } ?: return
+        accessOrder.remove(candidateKey)
+        val evictedPreset = loadedPresetCache.remove(candidateKey)
         // Clean sample buffers to aid GC
         evictedPreset?.zones?.forEach { zone ->
             zone.sampleBuffer = null
+        }
+    }
+
+    fun pinVoices(voices: Collection<com.example.domain.soundfont.model.SoundFontVoice>) {
+        val keys = voices.map { "${it.filePath}:${it.bank}:${it.program}" }.toSet()
+        pinnedKeys.clear()
+        pinnedKeys.addAll(keys)
+    }
+
+    /**
+     * Preloads exactly the SoundFonts required by all rhythm tracks + the 3 live performance parts (R1, R2, L).
+     * Bounded strictly to only what is needed, evicting any unused old presets to conserve mobile RAM.
+     */
+    fun preloadActiveRhythmAndParts(
+        rhythmVoices: List<com.example.domain.soundfont.model.SoundFontVoice?>,
+        performanceVoices: List<com.example.domain.soundfont.model.SoundFontVoice?>,
+        onComplete: (() -> Unit)? = null
+    ) {
+        val allActiveVoices = (rhythmVoices + performanceVoices).filterNotNull().distinctBy { "${it.filePath}:${it.bank}:${it.program}" }
+        pinVoices(allActiveVoices)
+
+        coroutineScope.launch {
+            for (voice in allActiveVoices) {
+                val meta = catalog[voice.filePath] ?: registerSoundFont(File(voice.filePath))
+                if (meta != null) {
+                    try {
+                        getOrLoadPreset(meta, voice.bank, voice.program)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            // Free any stale presets not used by current rhythm or performance
+            val activeKeys = allActiveVoices.map { "${it.filePath}:${it.bank}:${it.program}" }.toSet()
+            evictUnused(activeKeys)
+
+            onComplete?.invoke()
         }
     }
 

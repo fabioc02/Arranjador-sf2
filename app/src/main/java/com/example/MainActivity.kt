@@ -107,30 +107,41 @@ object MidiState {
     val soundFontRepository = com.example.domain.soundfont.repository.OnDemandSoundFontRepository()
     val soundFontSynth = com.example.domain.soundfont.synth.SoundFontSynthEngine(soundFontRepository)
     val audioTrackBackend = com.example.domain.audio.AudioTrackBackend()
+    val oboeAudioBackend = com.example.domain.audio.OboeAudioBackend(audioTrackBackend)
     var voiceManager: com.example.domain.arranger.VoiceManager? = null
 
+    var polyphonyMode by mutableStateOf(128)
+
+    fun setPolyphony(voices: Int) {
+        val target = if (voices >= 128) 128 else 64
+        polyphonyMode = target
+        soundFontSynth.setPolyphony(target)
+        com.example.domain.audio.NativeAudioBridge.setMaxPolyphony(target)
+    }
+
     fun ensureSoundFontAudioActive(context: android.content.Context) {
-        audioTrackBackend.attachContext(context)
-        audioTrackBackend.setRenderer(object : com.example.domain.audio.AudioRenderer {
+        oboeAudioBackend.attachContext(context)
+        oboeAudioBackend.setRenderer(object : com.example.domain.audio.AudioRenderer {
             override fun render(buffer: FloatArray, frameCount: Int) {
                 soundFontSynth.render(buffer, 0, frameCount)
             }
         })
-        audioTrackBackend.start(44100, 256)
+        oboeAudioBackend.start(44100, 192)
     }
 
     fun setSoundOutput(engine: com.example.domain.soundfont.model.SoundOutputEngine, context: android.content.Context? = null) {
         soundOutputEngine = engine
         if (engine != com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
-            context?.let { audioTrackBackend.attachContext(it) }
-            audioTrackBackend.setRenderer(object : com.example.domain.audio.AudioRenderer {
+            context?.let { oboeAudioBackend.attachContext(it) }
+            oboeAudioBackend.setRenderer(object : com.example.domain.audio.AudioRenderer {
                 override fun render(buffer: FloatArray, frameCount: Int) {
                     soundFontSynth.render(buffer, 0, frameCount)
                 }
             })
-            audioTrackBackend.start(44100, 256)
+            oboeAudioBackend.start(44100, 192)
         } else {
             soundFontSynth.panic()
+            com.example.domain.audio.NativeAudioBridge.allNotesOff(-1)
         }
     }
 

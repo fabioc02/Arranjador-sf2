@@ -54,6 +54,7 @@ fun SoundFontHelpDialog(
     val totalVoices = MidiState.soundFontRepository.availableVoices.size
     val ramUsedMb = MidiState.soundFontRepository.getLoadedRamMb()
     val defaultDir = remember { SoundFontStorageManager.getDefaultSoundFontsDir(context).absolutePath }
+    var showPickerModal by remember { mutableStateOf(false) }
 
     // Folder Picker (SAF)
     val openFolderLauncher = rememberLauncherForActivityResult(
@@ -196,6 +197,16 @@ fun SoundFontHelpDialog(
                     }
                 }
 
+                if (totalVoices > 0) {
+                    Button(
+                        onClick = { showPickerModal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A))
+                    ) {
+                        Text("🔍 Abrir Navegador e Indexador de Categorias ($totalVoices SFs)", fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 // METHOD 1: OPEN FOLDER (SAF)
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -329,4 +340,23 @@ fun SoundFontHelpDialog(
             }
         }
     )
+
+    if (showPickerModal) {
+        SoundFontPickerModal(
+            title = "Navegador e Indexador de SoundFonts",
+            currentVoice = null,
+            onVoiceSelected = {
+                showPickerModal = false
+                onSoundFontsUpdated()
+            },
+            onDismiss = {
+                showPickerModal = false
+                onSoundFontsUpdated()
+            },
+            onOpenImporter = {
+                showPickerModal = false
+                openFolderLauncher.launch(null)
+            }
+        )
+    }
 }

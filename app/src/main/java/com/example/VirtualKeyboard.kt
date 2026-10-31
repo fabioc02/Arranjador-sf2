@@ -97,11 +97,11 @@ fun PianoKey(note: Int, isBlack: Boolean, modifier: Modifier = Modifier) {
                     val down = awaitFirstDown()
                     isPressed = true
                     val velocity = 127
-                    try { com.example.MidiState.sendNoteOn(0, note, velocity) } catch(e: Throwable){}
+                    try { com.example.domain.midi_core.MidiDispatcher.sendNoteOn(0, note, velocity) } catch(e: Throwable){}
                     
                     waitForUpOrCancellation()
                     isPressed = false
-                    try { com.example.MidiState.sendNoteOff(0, note, 0) } catch(e: Throwable){}
+                    try { com.example.domain.midi_core.MidiDispatcher.sendNoteOff(0, note, 0) } catch(e: Throwable){}
                 }
             }
     )

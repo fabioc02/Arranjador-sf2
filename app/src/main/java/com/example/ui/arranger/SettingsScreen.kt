@@ -107,9 +107,60 @@ fun SettingsScreen(
                         ) {
                             Text(
                                 if (usbAudio != null) "✓ Interface de Áudio USB: $usbAudio (Sem delay / 32-bit Float)"
-                                else "Saída de Áudio: Sistema / Fone de Ouvido",
+                                else "Saída de Áudio: Sistema / Fone de Ouvido (Oboe Low Latency)",
                                 style = MaterialTheme.typography.labelSmall
                             )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "Polifonia do Motor Sonoro (SoundFonts / C++ Oboe)",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Selecione 128 vozes para celulares potentes ou 64 vozes para economia de bateria.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val currentPolyphony = com.example.MidiState.polyphonyMode
+                    val polyphonyOptions = listOf(
+                        128 to "128 Vozes (Alta Potência / Celulares Potentes - Sem corte de notas)",
+                        64 to "64 Vozes (Padrão balanceado / Econômico)"
+                    )
+
+                    polyphonyOptions.forEach { (voices, label) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = (currentPolyphony == voices),
+                                onClick = { com.example.MidiState.setPolyphony(voices) }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

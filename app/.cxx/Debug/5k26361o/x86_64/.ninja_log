@@ -1,0 +1,5 @@
+# ninja log v5
+0	3390	1793461749273395655	CMakeFiles/arranger_native_audio.dir/SynthCore.cpp.o	2222d1fca3faea03
+1	3530	1793461749464218036	CMakeFiles/arranger_native_audio.dir/OboeAudioEngine.cpp.o	a7a1ba30dc29e224
+6	3586	1793461749521652215	CMakeFiles/arranger_native_audio.dir/OboeAudioEngineJNI.cpp.o	50fb39842daffbfb
+3587	3629	1793461749564309074	/app/applet/app/build/intermediates/cxx/Debug/5k26361o/obj/x86_64/libarranger_native_audio.so	e63e57f16bfcf673

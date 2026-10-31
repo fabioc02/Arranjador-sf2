@@ -128,9 +128,22 @@ data class SoundFontPreset(
     /**
      * Finds matching zones for a given note and velocity.
      * In stereo soundfonts (like Triton with L and R pairs), this returns two zones (Left and Right).
+     * Includes intelligent fallbacks so instruments with limited key/velocity bounds always play their authentic sample.
      */
     fun findMatchingZones(note: Int, velocity: Int): List<InstrumentZone> {
-        return zones.filter { it.matches(note, velocity) }
+        val exact = zones.filter { it.matches(note, velocity) }
+        if (exact.isNotEmpty()) return exact
+
+        // Fallback 1: Match key ignoring velocity bounds
+        val keyMatched = zones.filter { note in it.lowKey..it.highKey }
+        if (keyMatched.isNotEmpty()) return keyMatched
+
+        // Fallback 2: Nearest zone or first available zone
+        if (zones.isNotEmpty()) {
+            val nearest = zones.minByOrNull { kotlin.math.abs(it.effectiveRootKey - note) } ?: zones.first()
+            return listOf(nearest)
+        }
+        return emptyList()
     }
 }
 

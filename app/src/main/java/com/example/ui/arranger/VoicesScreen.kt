@@ -678,9 +678,11 @@ private fun SoundFontBrowserView(
 
     // Dynamic Categories
     val categories = remember(allVoices.size) {
-        val detected = allVoices.map { it.category }.distinct().sorted()
-        listOf("Todos") + detected
+        listOf("Todos") + com.example.domain.soundfont.repository.SoundFontCategoryManager.getAllCategories()
     }
+    var voiceToReclassifyInVoices by remember { mutableStateOf<SoundFontVoice?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     OutlinedTextField(
         value = searchQuery,
@@ -708,7 +710,7 @@ private fun SoundFontBrowserView(
 
     val filteredList = allVoices.filter { voice ->
         (searchQuery.isEmpty() || voice.name.contains(searchQuery, ignoreCase = true) || voice.category.contains(searchQuery, ignoreCase = true)) &&
-        (selectedCategory == "Todos" || voice.category == selectedCategory)
+        (selectedCategory == "Todos" || voice.category.equals(selectedCategory, ignoreCase = true))
     }
 
     Text("Timbres SoundFont (${filteredList.size}):", style = MaterialTheme.typography.labelSmall)
@@ -749,22 +751,65 @@ private fun SoundFontBrowserView(
                         }
                     }
 
-                    if (isLoaded) {
-                        Surface(
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.padding(start = 6.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        MidiState.ensureSoundFontAudioActive(context)
+                                        MidiState.soundFontSynth.setChannelVoice(selectedChannelIndex, voice)
+                                        val auditionNote = if (voice.category.contains("bateria", ignoreCase = true) || voice.category.contains("drum", ignoreCase = true)) 36 else 60
+                                        MidiState.soundFontSynth.noteOn(selectedChannelIndex, auditionNote, 105)
+                                        kotlinx.coroutines.delay(420)
+                                        MidiState.soundFontSynth.noteOff(selectedChannelIndex, auditionNote)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Text(
-                                text = "⚡ RAM",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                            Text("🔊", fontSize = 13.sp)
+                        }
+
+                        IconButton(
+                            onClick = { voiceToReclassifyInVoices = voice },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text("🏷️", fontSize = 13.sp)
+                        }
+
+                        if (isLoaded) {
+                            Surface(
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(start = 6.dp)
+                            ) {
+                                Text(
+                                    text = "⚡ RAM",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    voiceToReclassifyInVoices?.let { targetVoice ->
+        ReclassifyCategoryDialog(
+            voice = targetVoice,
+            categories = com.example.domain.soundfont.repository.SoundFontCategoryManager.getAllCategories(),
+            onDismiss = { voiceToReclassifyInVoices = null },
+            onCategoryAssigned = { newCat ->
+                com.example.domain.soundfont.repository.SoundFontCategoryManager.assignCategory(context, targetVoice, newCat)
+                repository.updateVoiceCategory(targetVoice.id, newCat)
+                voiceToReclassifyInVoices = null
+                Toast.makeText(context, "\"${targetVoice.name}\" reclassificado para: $newCat", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 }

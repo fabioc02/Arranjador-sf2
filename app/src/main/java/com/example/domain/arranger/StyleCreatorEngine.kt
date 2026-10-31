@@ -67,11 +67,25 @@ class StyleCreatorEngine(
         }
         Thread.sleep(30)
         
+        // Preload active rhythm soundfonts + live performance parts to guarantee immediate zero-latency playback
+        val rhythmVoices = tracks.mapNotNull { it.soundFontVoice }
+        val liveVoices = listOf(
+            com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_RIGHT1].soundFontVoice,
+            com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_RIGHT2].soundFontVoice,
+            com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_LEFT].soundFontVoice
+        ).filterNotNull()
+        com.example.MidiState.soundFontRepository.preloadActiveRhythmAndParts(rhythmVoices, liveVoices)
+
         // 2. Send Bank Select, Program Change, and Part Controls (Vol, Pan, Rev, Cho, DSP)
         tracks.forEach { track ->
             val ch = track.channel - 1
             val xgPart = ch
-            MidiDispatcher.sendProgramChange(ch, track.bankMsb, track.bankLsb, track.program)
+            if (track.soundFontVoice != null) {
+                com.example.MidiState.soundFontSynth.setChannelVoice(ch, track.soundFontVoice)
+                com.example.MidiState.voiceManager?.setSoundFontMapping(ch, track.soundFontVoice!!)
+            } else {
+                MidiDispatcher.sendProgramChange(ch, track.bankMsb, track.bankLsb, track.program)
+            }
             MidiDispatcher.sendControlChange(ch, 7, track.volume)
             MidiDispatcher.sendControlChange(ch, 10, track.pan)
             MidiDispatcher.sendControlChange(ch, 91, track.reverb)

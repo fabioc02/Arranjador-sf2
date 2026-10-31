@@ -12,6 +12,7 @@ plugins {
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
+  ndkVersion = "26.1.10909125"
 
   defaultConfig {
     applicationId = "com.aistudio.arrangerpro.okhqcd"
@@ -21,6 +22,12 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    externalNativeBuild {
+      cmake {
+        cppFlags += "-std=c++17"
+        arguments += "-DANDROID_STL=c++_shared"
+      }
+    }
   }
 
   signingConfigs {
@@ -62,6 +69,14 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+    prefab = true
+  }
+
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
   }
   
   testOptions { unitTests { isIncludeAndroidResources = true } }
@@ -82,7 +97,7 @@ googleServices {
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
-  // implementation(libs.oboe)
+  implementation(libs.oboe)
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)

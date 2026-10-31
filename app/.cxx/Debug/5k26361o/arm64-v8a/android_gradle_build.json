@@ -1,0 +1,40 @@
+{
+  "buildFiles": [
+    "/app/applet/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/opt/android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/app/applet/app/.cxx/Debug/5k26361o/arm64-v8a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/opt/android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/app/applet/app/.cxx/Debug/5k26361o/arm64-v8a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "arranger_native_audio::@6890427a1f51a3e7e1df": {
+      "toolchain": "toolchain",
+      "abi": "arm64-v8a",
+      "artifactName": "arranger_native_audio",
+      "output": "/app/applet/app/build/intermediates/cxx/Debug/5k26361o/obj/arm64-v8a/libarranger_native_audio.so",
+      "runtimeFiles": [
+        "/opt/gradle/.gradle/caches/9.3.1/transforms/f50e03369f17b75a9d57023344b262df/transformed/oboe-1.8.1/prefab/modules/oboe/libs/android.arm64-v8a/liboboe.so"
+      ]
+    }
+  },
+  "toolchains": {
+    "toolchain": {
+      "cCompilerExecutable": "/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin/clang.lld",
+      "cppCompilerExecutable": "/opt/android/sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++.lld"
+    }
+  },
+  "cFileExtensions": [],
+  "cppFileExtensions": [
+    "cpp"
+  ]
+}

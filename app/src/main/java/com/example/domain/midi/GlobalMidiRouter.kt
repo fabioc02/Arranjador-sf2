@@ -43,10 +43,16 @@ object GlobalMidiRouter {
                 }
 
                 val recCh = overrideRightHandChannel
+                val isTrackSoundFont = recCh != null && (
+                    com.example.MidiState.voiceManager?.isChannelSoundFont(recCh) == true ||
+                    com.example.MidiRhythmState.tracks.any { it.channel - 1 == recCh && it.soundFontVoice != null }
+                )
                 val isSoundFontMode = MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL ||
-                    MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.HYBRID_BOTH
+                    MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.HYBRID_BOTH ||
+                    isTrackSoundFont
+
                 if (recCh != null && (enableLiveMidiEcho || com.example.MidiRhythmState.isLocalControlOff || isSoundFontMode)) {
-                    // When Local Control is OFF on the PSR-S750 or in SoundFont mode,
+                    // When Local Control is OFF on the PSR-S750 or in SoundFont mode or track is SoundFont,
                     // the app routes incoming notes to the selected track channel so the user hears the track voice live!
                     if (channel != recCh || isSoundFontMode) {
                         if (isNoteOn) com.example.domain.midi_core.MidiDispatcher.sendNoteOn(recCh, data1, data2)
@@ -58,7 +64,8 @@ object GlobalMidiRouter {
                 } else {
                     // When a part/channel is assigned to a SoundFont (e.g. Right 1, Right 2, Left),
                     // or in SoundFont mode with Local Control OFF, dispatch incoming notes to SoundFont synth!
-                    val isChannelSoundFont = com.example.MidiState.voiceManager?.isChannelSoundFont(channel) == true
+                    val isChannelSoundFont = com.example.MidiState.voiceManager?.isChannelSoundFont(channel) == true ||
+                        com.example.MidiRhythmState.tracks.any { it.channel - 1 == channel && it.soundFontVoice != null }
                     if (isChannelSoundFont || (isSoundFontMode && (enableLiveMidiEcho || com.example.MidiRhythmState.isLocalControlOff))) {
                         if (isNoteOn) com.example.domain.midi_core.MidiDispatcher.sendNoteOn(channel, data1, data2)
                         else if (isNoteOff) com.example.domain.midi_core.MidiDispatcher.sendNoteOff(channel, data1, data2)

@@ -304,6 +304,14 @@ object MidiRhythmState {
             if (sf != null) {
                 MidiState.soundFontSynth.setChannelVoice(ch, sf)
                 MidiState.voiceManager?.setSoundFontMapping(ch, sf)
+
+                val rhythmVoices = tracks.mapNotNull { it.soundFontVoice }
+                val liveVoices = listOf(
+                    com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_RIGHT1].soundFontVoice,
+                    com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_RIGHT2].soundFontVoice,
+                    com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_LEFT].soundFontVoice
+                ).filterNotNull()
+                MidiState.soundFontRepository.preloadActiveRhythmAndParts(rhythmVoices, liveVoices)
                 return
             }
             val key = "$ch:${track.bankMsb}:${track.bankLsb}:${track.program}:${track.isDrumTrack}"

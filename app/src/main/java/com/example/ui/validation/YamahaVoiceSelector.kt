@@ -17,6 +17,9 @@ import com.example.MidiState
 import com.example.data.YamahaVoiceRepository
 import com.example.domain.models.YamahaVoice
 import com.example.domain.soundfont.model.SoundFontVoice
+import com.example.ui.arranger.SoundFontPickerModal
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun InterchangeableVoiceSelector(
@@ -33,6 +36,8 @@ fun InterchangeableVoiceSelector(
     onSoundFontSelected: (SoundFontVoice) -> Unit,
     onOpenSoundFontDialog: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var expandedCategory by remember { mutableStateOf(false) }
     var expandedVoice by remember { mutableStateOf(false) }
     
@@ -168,106 +173,123 @@ fun InterchangeableVoiceSelector(
 
         } else {
             // SOUNDFONT MODE (SF2 / SFZ / KORG TRITON)
+            var showSoundFontPicker by remember { mutableStateOf(false) }
+
             if (sfVoices.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Nenhum SoundFont indexado ainda.", fontSize = 11.sp, color = Color.LightGray)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Button(
                         onClick = onOpenSoundFontDialog,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF512DA8)),
-                        modifier = Modifier.height(30.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp)
                     ) {
-                        Text("📁 Abrir Pasta / Adicionar Triton SF2 / SFZ", fontSize = 11.sp, color = Color.White)
+                        Text("📁 Importar Pasta com SoundFonts (Triton / SF2)", fontSize = 11.sp, color = Color.White)
                     }
                 }
             } else {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    // Category Filter
-                    Box(modifier = Modifier.weight(0.9f).padding(end = 4.dp)) {
-                        Button(
-                            onClick = { expandedSfCategory = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A148C)),
-                            shape = RoundedCornerShape(6.dp)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Selected Voice Card with Audition
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF261D36)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(selectedSfCategory, fontSize = 12.sp, color = Color.White)
-                        }
-                        DropdownMenu(
-                            expanded = expandedSfCategory,
-                            onDismissRequest = { expandedSfCategory = false }
-                        ) {
-                            availableSfCategories.forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat) },
-                                    onClick = {
-                                        selectedSfCategory = cat
-                                        val firstSf = if (cat == "Todos") sfVoices.first() else sfVoices.firstOrNull { it.category == cat } ?: sfVoices.first()
-                                        onSoundFontSelected(firstSf)
-                                        expandedSfCategory = false
-                                    }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = soundFontVoice?.name ?: "Nenhum selecionado",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White,
+                                    maxLines = 1
                                 )
+                                Text(
+                                    text = "Categoria: ${soundFontVoice?.category ?: "Geral"} • ${soundFontVoice?.fileType?.name ?: "SF2"} Stereo",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFFCE93D8)
+                                )
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                // Quick audition button
+                                if (soundFontVoice != null) {
+                                    FilledTonalIconButton(
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                try {
+                                                    MidiState.ensureSoundFontAudioActive(context)
+                                                    MidiState.soundFontSynth.setChannelVoice(channel, soundFontVoice)
+                                                    val previewNote = if (soundFontVoice.category.contains("bateria", ignoreCase = true) || soundFontVoice.category.contains("drum", ignoreCase = true)) 36 else 60
+                                                    MidiState.soundFontSynth.noteOn(channel, previewNote, 105)
+                                                    delay(420)
+                                                    MidiState.soundFontSynth.noteOff(channel, previewNote)
+                                                } catch (e: Exception) {}
+                                            }
+                                        },
+                                        modifier = Modifier.size(32.dp),
+                                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                            containerColor = Color(0xFF512DA8),
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Text("🔊", fontSize = 13.sp)
+                                    }
+                                }
+
+                                Button(
+                                    onClick = { showSoundFontPicker = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A)),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text("🔍 Buscar...", fontSize = 11.sp, color = Color.White)
+                                }
                             }
                         }
                     }
 
-                    // Instrument Selector
-                    val filteredVoices = if (selectedSfCategory == "Todos") sfVoices else sfVoices.filter { it.category == selectedSfCategory }
-                    Box(modifier = Modifier.weight(1.3f).padding(start = 4.dp)) {
-                        Button(
-                            onClick = { expandedSfVoice = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF311B92)),
-                            shape = RoundedCornerShape(6.dp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${sfVoices.size} SoundFonts indexados (Korg Triton, Pianos, etc.)",
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
+                        TextButton(
+                            onClick = onOpenSoundFontDialog,
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            modifier = Modifier.height(24.dp)
                         ) {
-                            val displayName = soundFontVoice?.name ?: filteredVoices.firstOrNull()?.name ?: "Selecionar Timbre"
-                            Text(displayName, fontSize = 12.sp, color = Color.White)
-                        }
-                        DropdownMenu(
-                            expanded = expandedSfVoice,
-                            onDismissRequest = { expandedSfVoice = false }
-                        ) {
-                            filteredVoices.forEach { sf ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(sf.name, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            Text("${sf.category} • ${sf.fileType.name} Stereo • ${sf.fileSizeFormatted}", fontSize = 10.sp, color = Color.Gray)
-                                        }
-                                    },
-                                    onClick = {
-                                        onSoundFontSelected(sf)
-                                        expandedSfVoice = false
-                                    }
-                                )
-                            }
+                            Text("📁 Pastas / Organizar", fontSize = 10.sp, color = Color(0xFFB39DDB))
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val currentName = soundFontVoice?.name ?: "Nenhum"
-                    val currentCat = soundFontVoice?.category ?: ""
-                    Text(
-                        "🎵 SoundFont: $currentName ($currentCat)",
-                        fontSize = 11.sp,
-                        color = Color(0xFFCE93D8)
+                if (showSoundFontPicker) {
+                    SoundFontPickerModal(
+                        title = "Selecionar SoundFont ($label)",
+                        currentVoice = soundFontVoice,
+                        previewChannel = channel,
+                        onVoiceSelected = { sf ->
+                            onSoundFontSelected(sf)
+                            showSoundFontPicker = false
+                        },
+                        onDismiss = { showSoundFontPicker = false },
+                        onOpenImporter = onOpenSoundFontDialog
                     )
-                    TextButton(
-                        onClick = onOpenSoundFontDialog,
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                        modifier = Modifier.height(24.dp)
-                    ) {
-                        Text("📁 Pastas", fontSize = 10.sp, color = Color(0xFFB39DDB))
-                    }
                 }
             }
         }

@@ -172,4 +172,25 @@ class SoundFontIntegrationAndDspTest {
         }
         assertTrue("Reverb and Chorus must generate wet output", hasAudio)
     }
+
+    @Test
+    fun testSoundFontCategoryManager_AccurateClassificationAndUserOverride() {
+        val catManager = com.example.domain.soundfont.repository.SoundFontCategoryManager
+
+        // 1. Verify that Rhodes/Dyno/Wurlitzer/Tines are categorized as E.Piano, NOT plain Piano
+        assertEquals("E.Piano", catManager.detectDefaultCategory("EXBA019_Dyno_My_Piano_Chorused.sf2", "Dyno", "sf2_harmonicos"))
+        assertEquals("E.Piano", catManager.detectDefaultCategory("EXBA016_Rhodes_Mark_I_Stage73.sf2", "Rhodes", "sf2_harmonicos"))
+        assertEquals("E.Piano", catManager.detectDefaultCategory("EXBA018_Wurlitzer_200A_Trem.sf2", "Wurlitzer", "sf2_harmonicos"))
+        assertEquals("E.Piano", catManager.detectDefaultCategory("EXBA020_FM_Classic_Tines_A.sf2", "FM Tines", "sf2_harmonicos"))
+
+        // 2. Verify Drums & Korg Triton
+        assertEquals("Baterias", catManager.detectDefaultCategory("Standard_Kit_2.sf2", "Kit", "samples"))
+        assertEquals("Korg Triton", catManager.detectDefaultCategory("Korg_Triton_Solo_Lead.sf2", "Lead", "triton_folder"))
+
+        // 3. Verify Acoustic Pianos
+        assertEquals("Piano", catManager.detectDefaultCategory("Yamaha_Concert_Grand.sf2", "Grand Piano", "pianos"))
+
+        // 4. Verify fallback to meaningful folder name when not generic
+        assertEquals("Acordeon", catManager.detectDefaultCategory("Sanfona_Nordestina.sf2", "Sanfona", "acordeon"))
+    }
 }

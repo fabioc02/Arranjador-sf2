@@ -25,8 +25,20 @@ import com.example.domain.soundfont.repository.OnDemandSoundFontRepository
  */
 class SoundFontSynthEngine(
     val repository: OnDemandSoundFontRepository,
-    private val maxPolyphony: Int = 48
+    maxPolyphony: Int = 128
 ) : SynthBackend {
+
+    var polyphonyLimit: Int = maxPolyphony.coerceIn(16, 128)
+        set(value) {
+            field = value.coerceIn(16, 128)
+            for (i in field until voices.size) {
+                voices[i].stop()
+            }
+        }
+
+    fun setPolyphony(limit: Int) {
+        polyphonyLimit = limit
+    }
 
     private var sampleRate = 44100
     private var sampleRateF = 44100f
@@ -74,7 +86,7 @@ class SoundFontSynthEngine(
         }
     }
 
-    private val voices = Array(maxPolyphony) { Voice() }
+    private val voices = Array(128) { Voice() }
 
     // MIDI Channel States (16 channels)
     private class ChannelState {
@@ -116,6 +128,10 @@ class SoundFontSynthEngine(
         } else {
             updateChannelPreset(ch)
         }
+    }
+
+    fun isChannelSoundFont(channel: Int): Boolean {
+        return channels[channel and 0x0F].assignedSoundFontVoice != null
     }
 
     // DSP Effects
@@ -266,13 +282,34 @@ class SoundFontSynthEngine(
     ) {
         val state = channels[ch]
 
-        // Find free voice or steal oldest in release
-        var voice = voices.find { !it.active }
-        if (voice == null) {
-            voice = voices.filter { it.active && it.envState == EnvState.RELEASE }.minByOrNull { it.envLevel }
+        // Find free voice or steal oldest in release within polyphonyLimit
+        var voice: Voice? = null
+        for (i in 0 until polyphonyLimit) {
+            if (!voices[i].active) {
+                voice = voices[i]
+                break
+            }
         }
         if (voice == null) {
-            voice = voices.minByOrNull { it.envLevel } ?: voices[0]
+            var minRelLevel = Float.MAX_VALUE
+            for (i in 0 until polyphonyLimit) {
+                val v = voices[i]
+                if (v.active && v.envState == EnvState.RELEASE && v.envLevel < minRelLevel) {
+                    minRelLevel = v.envLevel
+                    voice = v
+                }
+            }
+        }
+        if (voice == null) {
+            var minLevel = Float.MAX_VALUE
+            var lowestVoice = voices[0]
+            for (i in 0 until polyphonyLimit) {
+                if (voices[i].envLevel < minLevel) {
+                    minLevel = voices[i].envLevel
+                    lowestVoice = voices[i]
+                }
+            }
+            voice = lowestVoice
         }
 
         voice.active = true
@@ -394,8 +431,9 @@ class SoundFontSynthEngine(
         choSendL.fill(0f, 0, frameCount)
         choSendR.fill(0f, 0, frameCount)
 
-        // Render active voices
-        for (voice in voices) {
+        // Render active voices up to polyphonyLimit
+        for (i in 0 until polyphonyLimit) {
+            val voice = voices[i]
             if (!voice.active) continue
             renderVoice(voice, frameCount)
         }
@@ -517,10 +555,13 @@ class SoundFontSynthEngine(
     }
 
     override fun getStatistics(): SynthStatistics {
-        val activeCount = voices.count { it.active }
+        var activeCount = 0
+        for (i in 0 until polyphonyLimit) {
+            if (voices[i].active) activeCount++
+        }
         return SynthStatistics(
             activeVoices = activeCount,
-            cpuUsage = (activeCount / maxPolyphony.toFloat()) * 100f,
+            cpuUsage = (activeCount / polyphonyLimit.toFloat()) * 100f,
             memoryUsage = (repository.getLoadedCount() * 11500000L)
         )
     }

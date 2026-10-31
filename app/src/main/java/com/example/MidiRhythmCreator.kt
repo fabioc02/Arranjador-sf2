@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
+import com.example.ui.arranger.SoundFontPickerModal
 
 
 
@@ -359,6 +360,11 @@ data class RhythmState(
 fun MidiRhythmCreatorDialog(visible: Boolean, onDismiss: () -> Unit) {
     var showExtMidi by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var showSoundFontHelpDialog by remember { mutableStateOf(false) }
+    var showSaveRhythmDialog by remember { mutableStateOf(false) }
+    var showLoadRhythmDialog by remember { mutableStateOf(false) }
+    var rhythmNameInput by remember { mutableStateOf("Meu Ritmo") }
+    var savedRhythmsList by remember { mutableStateOf(listOf<com.example.domain.rhythm.SavedRhythmHeader>()) }
+
     val context = androidx.compose.ui.platform.LocalContext.current
     if (!visible) return
     if (MidiRhythmState.showDrumSetup) {
@@ -368,6 +374,129 @@ fun MidiRhythmCreatorDialog(visible: Boolean, onDismiss: () -> Unit) {
         com.example.ui.arranger.SoundFontHelpDialog(
             onDismiss = { showSoundFontHelpDialog = false },
             onSoundFontsUpdated = { }
+        )
+    }
+
+    if (showSaveRhythmDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveRhythmDialog = false },
+            title = { Text("Salvar Ritmo no App") },
+            text = {
+                Column {
+                    Text("O ritmo será salvo com todos os SoundFonts atribuídos às tracks, notas e parâmetros.", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = rhythmNameInput,
+                        onValueChange = { rhythmNameInput = it },
+                        label = { Text("Nome do Ritmo") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val sectionStateMap = MidiRhythmState.sectionTracks.mapValues { (_, trkList) ->
+                        trkList.map { it.toState() }
+                    }
+                    com.example.domain.rhythm.RhythmProjectManager.saveRhythm(
+                        context = context,
+                        name = rhythmNameInput.ifBlank { "Ritmo" },
+                        bpm = MidiRhythmState.bpm,
+                        measures = MidiRhythmState.measures,
+                        timeSigNum = MidiRhythmState.timeSigNumerator,
+                        timeSigDen = MidiRhythmState.timeSigDenominator,
+                        sectionTracks = sectionStateMap
+                    )
+                    showSaveRhythmDialog = false
+                }) {
+                    Text("Salvar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveRhythmDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showLoadRhythmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLoadRhythmDialog = false },
+            title = { Text("Carregar Ritmo Salvo") },
+            text = {
+                if (savedRhythmsList.isEmpty()) {
+                    Text("Nenhum ritmo salvo no app ainda. Crie e salve um ritmo primeiro!", fontSize = 12.sp, color = Color.Gray)
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(savedRhythmsList.size) { idx ->
+                            val header = savedRhythmsList[idx]
+                            Surface(
+                                onClick = {
+                                    val loaded = com.example.domain.rhythm.RhythmProjectManager.loadRhythm(context, header.id)
+                                    if (loaded != null) {
+                                        MidiRhythmState.bpm = loaded.bpm
+                                        MidiRhythmState.measures = loaded.measures
+                                        MidiRhythmState.timeSigNumerator = loaded.timeSigNum
+                                        MidiRhythmState.timeSigDenominator = loaded.timeSigDen
+
+                                        loaded.sectionTracks.forEach { (secName, trackStates) ->
+                                            val sec = com.example.StyleSection.values().find { it.name == secName }
+                                            if (sec != null) {
+                                                val restoredList = trackStates.map { state ->
+                                                    RhythmTrack(state.name, state.channel, state.bankMsb, state.bankLsb, state.program, state.isDrumTrack).apply {
+                                                        fromState(state)
+                                                    }
+                                                }
+                                                MidiRhythmState.sectionTracks[sec] = restoredList
+                                            }
+                                        }
+
+                                        // Preload active rhythm soundfonts + 3 live performance parts (R1, R2, L)
+                                        val rhythmVoices = MidiRhythmState.tracks.mapNotNull { it.soundFontVoice }
+                                        val liveVoices = listOf(
+                                            com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_RIGHT1].soundFontVoice,
+                                            com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_RIGHT2].soundFontVoice,
+                                            com.example.domain.models.VoiceEngine.channels[com.example.domain.models.VoiceEngine.CH_LEFT].soundFontVoice
+                                        ).filterNotNull()
+                                        MidiState.soundFontRepository.preloadActiveRhythmAndParts(rhythmVoices, liveVoices)
+
+                                        MidiRhythmState.tracks.forEach { track ->
+                                            MidiRhythmState.applyTrackVoice(track, force = true)
+                                        }
+                                    }
+                                    showLoadRhythmDialog = false
+                                },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(header.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("${header.bpm.toInt()} BPM • ${header.measures} Comp • ${header.usedSoundFontsCount} SFs", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(onClick = {
+                                        com.example.domain.rhythm.RhythmProjectManager.deleteRhythm(context, header.id)
+                                        savedRhythmsList = com.example.domain.rhythm.RhythmProjectManager.listSavedRhythms(context)
+                                    }) {
+                                        Icon(androidx.compose.material.icons.Icons.Default.Close, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLoadRhythmDialog = false }) { Text("Fechar") }
+            }
         )
     }
 
@@ -574,6 +703,33 @@ androidx.compose.material3.AlertDialog(
                             val context = androidx.compose.ui.platform.LocalContext.current
                             Button(
                                 onClick = {
+                                    rhythmNameInput = "Ritmo ${System.currentTimeMillis() % 1000}"
+                                    showSaveRhythmDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                modifier = Modifier.height(32.dp), contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) { Text("💾 SALVAR", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+
+                            Button(
+                                onClick = {
+                                    savedRhythmsList = com.example.domain.rhythm.RhythmProjectManager.listSavedRhythms(context)
+                                    showLoadRhythmDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00838F)),
+                                modifier = Modifier.height(32.dp), contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) { Text("📂 CARREGAR", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+
+                            Button(
+                                onClick = {
+                                    val nextPoly = if (com.example.MidiState.polyphonyMode == 128) 64 else 128
+                                    com.example.MidiState.setPolyphony(nextPoly)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = if (com.example.MidiState.polyphonyMode == 128) Color(0xFFE65100) else Color(0xFF5D4037)),
+                                modifier = Modifier.height(32.dp), contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) { Text("⚡ ${com.example.MidiState.polyphonyMode} Vozes", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+
+                            Button(
+                                onClick = {
                                     kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                         val styleData = com.example.domain.midi.CasmWriter.writeStyle(MidiRhythmState.sectionTracks, ppq)
                                         com.example.domain.midi.FileExporter.saveStyleFile(context, styleData, "YamahaStyle.sty")
@@ -581,7 +737,7 @@ androidx.compose.material3.AlertDialog(
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0)),
                                 modifier = Modifier.height(32.dp), contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) { Text("EXPORT STY", fontSize = 12.sp) }
+                            ) { Text("EXPORT STY", fontSize = 11.sp) }
                             
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(Color.DarkGray, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(horizontal = 4.dp).height(32.dp)) {
                                 androidx.compose.material3.IconButton(onClick = { MidiRhythmState.measures = (MidiRhythmState.measures - 1).coerceAtLeast(1) }, modifier = Modifier.size(24.dp)) {
@@ -829,58 +985,138 @@ androidx.compose.material3.AlertDialog(
                                                                 }
                                                             }
                                                         } else {
-                                                            // Category chips
-                                                            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-                                                            androidx.compose.foundation.layout.FlowRow(
-                                                                modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                                                            ) {
-                                                                availableCategories.forEach { cat ->
-                                                                    FilterChip(
-                                                                        selected = selectedCategory == cat,
-                                                                        onClick = { selectedCategory = cat },
-                                                                        label = { Text(cat, fontSize = 10.sp) },
-                                                                        modifier = Modifier.height(26.dp)
-                                                                    )
-                                                                }
-                                                            }
+                                                            // SoundFonts Tab with full search & category management
+                                                            var sfSearchQuery by remember { mutableStateOf("") }
+                                                            var voiceToReclassifyInTrack by remember { mutableStateOf<com.example.domain.soundfont.model.SoundFontVoice?>(null) }
 
-                                                            val filteredSf = if (selectedCategory == "Todos") sfVoices else sfVoices.filter { it.category == selectedCategory }
-                                                            LazyColumn(modifier = Modifier.height(280.dp)) {
-                                                                items(filteredSf) { sf ->
-                                                                    val isLoaded = MidiState.soundFontRepository.isVoiceLoaded(sf)
-                                                                    Surface(onClick = {
-                                                                        track.soundFontVoice = sf
-                                                                        MidiRhythmState.applyTrackVoice(track, force = true)
-                                                                        MidiState.ensureSoundFontAudioActive(context)
-                                                                        if (MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
-                                                                            MidiState.setSoundOutput(com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL, context)
-                                                                        }
-                                                                        showVoiceDialog = false
-                                                                    }, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), color = if (track.soundFontVoice?.id == sf.id) Color(0xFFEDE7F6) else MaterialTheme.colorScheme.surfaceVariant) {
-                                                                        Row(
-                                                                            modifier = Modifier.padding(8.dp).fillMaxWidth(),
-                                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                                            verticalAlignment = Alignment.CenterVertically
+                                                            Column(modifier = Modifier.fillMaxWidth()) {
+                                                                // Search bar
+                                                                OutlinedTextField(
+                                                                    value = sfSearchQuery,
+                                                                    onValueChange = { sfSearchQuery = it },
+                                                                    placeholder = { Text("🔍 Buscar Triton, Rhodes, kit...", fontSize = 12.sp) },
+                                                                    singleLine = true,
+                                                                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                                                                )
+
+                                                                // Category chips
+                                                                val allCategoriesList = remember(sfVoices.size) {
+                                                                    listOf("Todos") + com.example.domain.soundfont.repository.SoundFontCategoryManager.getAllCategories()
+                                                                }
+                                                                val scrollStateCat = rememberScrollState()
+                                                                Row(
+                                                                    modifier = Modifier.fillMaxWidth().horizontalScroll(scrollStateCat).padding(bottom = 6.dp),
+                                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                                ) {
+                                                                    allCategoriesList.forEach { cat ->
+                                                                        val count = if (cat == "Todos") sfVoices.size else sfVoices.count { it.category.equals(cat, ignoreCase = true) }
+                                                                        FilterChip(
+                                                                            selected = selectedCategory == cat,
+                                                                            onClick = { selectedCategory = cat },
+                                                                            label = { Text(if (count > 0 && cat != "Todos") "$cat ($count)" else cat, fontSize = 10.sp) },
+                                                                            modifier = Modifier.height(26.dp)
+                                                                        )
+                                                                    }
+                                                                }
+
+                                                                val filteredSf = sfVoices.filter { sf ->
+                                                                    val matchesCat = (selectedCategory == "Todos") || sf.category.equals(selectedCategory, ignoreCase = true)
+                                                                    val matchesQuery = if (sfSearchQuery.isBlank()) true else {
+                                                                        val q = sfSearchQuery.trim().lowercase()
+                                                                        sf.name.lowercase().contains(q) || sf.category.lowercase().contains(q) || sf.filePath.lowercase().contains(q)
+                                                                    }
+                                                                    matchesCat && matchesQuery
+                                                                }
+
+                                                                Text("${filteredSf.size} de ${sfVoices.size} instrumentos", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 4.dp))
+
+                                                                LazyColumn(modifier = Modifier.height(280.dp)) {
+                                                                    items(filteredSf, key = { it.id }) { sf ->
+                                                                        val isLoaded = MidiState.soundFontRepository.isVoiceLoaded(sf)
+                                                                        val isSelected = track.soundFontVoice?.id == sf.id
+                                                                        Card(
+                                                                            onClick = {
+                                                                                track.soundFontVoice = sf
+                                                                                MidiRhythmState.applyTrackVoice(track, force = true)
+                                                                                MidiState.ensureSoundFontAudioActive(context)
+                                                                                if (MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
+                                                                                    MidiState.setSoundOutput(com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL, context)
+                                                                                }
+                                                                                showVoiceDialog = false
+                                                                            },
+                                                                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                                                            colors = CardDefaults.cardColors(
+                                                                                containerColor = if (isSelected) Color(0xFFEDE7F6) else MaterialTheme.colorScheme.surfaceVariant
+                                                                            )
                                                                         ) {
-                                                                            Column(modifier = Modifier.weight(1f)) {
-                                                                                Text(sf.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF4A148C))
-                                                                                Text("${sf.category} • ${sf.fileType.name} Stereo • ${sf.fileSizeFormatted}", fontSize = 10.sp, color = Color.Gray)
-                                                                            }
-                                                                            Surface(
-                                                                                color = if (isLoaded) Color(0xFFC8E6C9) else Color(0xFFE0E0E0),
-                                                                                shape = RoundedCornerShape(4.dp)
+                                                                            Row(
+                                                                                modifier = Modifier.padding(8.dp).fillMaxWidth(),
+                                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                                verticalAlignment = Alignment.CenterVertically
                                                                             ) {
-                                                                                Text(
-                                                                                    text = if (isLoaded) "⚡ RAM" else "💾 Sob Demanda",
-                                                                                    fontSize = 9.sp,
-                                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                                                                    color = Color.Black
-                                                                                )
+                                                                                Column(modifier = Modifier.weight(1f)) {
+                                                                                    Text(sf.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF4A148C))
+                                                                                    Text("${sf.category} • ${sf.fileType.name} Stereo • ${sf.fileSizeFormatted}", fontSize = 10.sp, color = Color.Gray)
+                                                                                }
+
+                                                                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                                                    // Audition preview note
+                                                                                    IconButton(
+                                                                                        onClick = {
+                                                                                            kotlinx.coroutines.GlobalScope.launch {
+                                                                                                try {
+                                                                                                    val ch = track.channel - 1
+                                                                                                    MidiState.ensureSoundFontAudioActive(context)
+                                                                                                    MidiState.soundFontSynth.setChannelVoice(ch, sf)
+                                                                                                    val previewNote = if (track.isDrumTrack || sf.category.contains("bateria", ignoreCase = true) || sf.category.contains("drum", ignoreCase = true)) 36 else 60
+                                                                                                    MidiState.soundFontSynth.noteOn(ch, previewNote, 105)
+                                                                                                    kotlinx.coroutines.delay(420)
+                                                                                                    MidiState.soundFontSynth.noteOff(ch, previewNote)
+                                                                                                } catch (e: Exception) {}
+                                                                                            }
+                                                                                        },
+                                                                                        modifier = Modifier.size(28.dp)
+                                                                                    ) {
+                                                                                        Text("🔊", fontSize = 12.sp)
+                                                                                    }
+
+                                                                                    // Reclassify category button
+                                                                                    IconButton(
+                                                                                        onClick = { voiceToReclassifyInTrack = sf },
+                                                                                        modifier = Modifier.size(28.dp)
+                                                                                    ) {
+                                                                                        Text("🏷️", fontSize = 12.sp)
+                                                                                    }
+
+                                                                                    Surface(
+                                                                                        color = if (isLoaded) Color(0xFFC8E6C9) else Color(0xFFE0E0E0),
+                                                                                        shape = RoundedCornerShape(4.dp)
+                                                                                    ) {
+                                                                                        Text(
+                                                                                            text = if (isLoaded) "⚡ RAM" else "💾 Sob Demanda",
+                                                                                            fontSize = 9.sp,
+                                                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                                                            color = Color.Black
+                                                                                        )
+                                                                                    }
+                                                                                }
                                                                             }
                                                                         }
                                                                     }
+                                                                }
+
+                                                                voiceToReclassifyInTrack?.let { targetSf ->
+                                                                    com.example.ui.arranger.ReclassifyCategoryDialog(
+                                                                        voice = targetSf,
+                                                                        categories = com.example.domain.soundfont.repository.SoundFontCategoryManager.getAllCategories(),
+                                                                        onDismiss = { voiceToReclassifyInTrack = null },
+                                                                        onCategoryAssigned = { newCat ->
+                                                                            com.example.domain.soundfont.repository.SoundFontCategoryManager.assignCategory(context, targetSf, newCat)
+                                                                            MidiState.soundFontRepository.updateVoiceCategory(targetSf.id, newCat)
+                                                                            voiceToReclassifyInTrack = null
+                                                                            android.widget.Toast.makeText(context, "\"${targetSf.name}\" agora é: $newCat", android.widget.Toast.LENGTH_SHORT).show()
+                                                                        }
+                                                                    )
                                                                 }
                                                             }
                                                         }
@@ -1106,10 +1342,21 @@ androidx.compose.material3.AlertDialog(
                                             if (selectedTrk != null) {
                                                 val ch = selectedTrk.channel - 1
                                                 val midiPitch = note + 48
-                                                com.example.MidiState.sendNoteOn(ch, midiPitch, 100)
+                                                val now = System.nanoTime()
+                                                com.example.domain.midi_core.MidiDispatcher.sendNoteOn(ch, midiPitch, 100, now)
+                                                // Trigger recording flow if in REC mode
+                                                if (com.example.MidiRhythmState.isRecording) {
+                                                    val status = 0x90 or (ch and 0x0F)
+                                                    com.example.MidiRhythmState.processIncomingMidi(status, midiPitch, 100, now)
+                                                }
                                                 kotlinx.coroutines.GlobalScope.launch {
                                                     kotlinx.coroutines.delay(200)
-                                                    com.example.MidiState.sendNoteOff(ch, midiPitch, 0)
+                                                    val offNow = System.nanoTime()
+                                                    com.example.domain.midi_core.MidiDispatcher.sendNoteOff(ch, midiPitch, 0, offNow)
+                                                    if (com.example.MidiRhythmState.isRecording) {
+                                                        val offStatus = 0x80 or (ch and 0x0F)
+                                                        com.example.MidiRhythmState.processIncomingMidi(offStatus, midiPitch, 0, offNow)
+                                                    }
                                                 }
                                             }
                                         }

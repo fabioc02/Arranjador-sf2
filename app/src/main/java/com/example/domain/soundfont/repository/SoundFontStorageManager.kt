@@ -50,6 +50,7 @@ object SoundFontStorageManager {
      * Scans the default soundfont directory and standard storage locations.
      */
     suspend fun scanAll(context: Context) = withContext(Dispatchers.IO) {
+        SoundFontCategoryManager.initialize(context)
         val rootDir = getDefaultSoundFontsDir(context)
         MidiState.soundFontRepository.scanDirectory(rootDir)
 
