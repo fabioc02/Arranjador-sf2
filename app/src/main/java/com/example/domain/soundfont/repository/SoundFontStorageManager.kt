@@ -52,6 +52,21 @@ object SoundFontStorageManager {
     suspend fun scanAll(context: Context) = withContext(Dispatchers.IO) {
         SoundFontCategoryManager.initialize(context)
         val rootDir = getDefaultSoundFontsDir(context)
+        // Extract bundled soundfont assets (e.g. Standard_Kit_2) if present
+        try {
+            val assetSfList = context.assets.list("soundfonts")
+            if (assetSfList != null && assetSfList.isNotEmpty()) {
+                for (folderName in assetSfList) {
+                    val destFolder = File(rootDir, folderName)
+                    if (!destFolder.exists() || destFolder.list().isNullOrEmpty()) {
+                        copyAssetTree(context, "soundfonts/$folderName", destFolder)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         MidiState.soundFontRepository.scanDirectory(rootDir)
 
         // Also scan public storage if accessible
@@ -66,6 +81,28 @@ object SoundFontStorageManager {
             }
         } catch (e: Exception) {
             // Ignore storage access limits on newer Android
+        }
+    }
+
+    private fun copyAssetTree(context: Context, assetPath: String, targetDir: File) {
+        val assetManager = context.assets
+        val list = assetManager.list(assetPath) ?: return
+        if (list.isEmpty()) {
+            // It's a file
+            targetDir.parentFile?.mkdirs()
+            assetManager.open(assetPath).use { input ->
+                FileOutputStream(targetDir).use { output ->
+                    input.copyTo(output)
+                }
+            }
+        } else {
+            // It's a directory
+            targetDir.mkdirs()
+            for (child in list) {
+                val childAssetPath = "$assetPath/$child"
+                val childTarget = File(targetDir, child)
+                copyAssetTree(context, childAssetPath, childTarget)
+            }
         }
     }
 

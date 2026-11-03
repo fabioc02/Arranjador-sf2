@@ -36,7 +36,12 @@ object SfzParser {
             val samplePath = currentOpcodes["sample"]
             if (samplePath != null) {
                 val fullRelPath = if (defaultPath.isNotEmpty()) {
-                    "$defaultPath/$samplePath".replace('\\', '/').replace("//", "/")
+                    val cleanSample = if (samplePath.startsWith(defaultPath) || samplePath.startsWith("samples/")) {
+                        samplePath
+                    } else {
+                        "$defaultPath/$samplePath"
+                    }
+                    cleanSample.replace('\\', '/').replace("//", "/")
                 } else {
                     samplePath.replace('\\', '/')
                 }

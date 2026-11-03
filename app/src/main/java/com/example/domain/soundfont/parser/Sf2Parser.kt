@@ -297,9 +297,41 @@ object Sf2Parser {
         }
     }
 
+    fun createFallbackBuffer(sh: SampleHeader): SampleBuffer {
+        val rootKey = if (sh.originalPitch in 12..120) sh.originalPitch else 60
+        val sampleRate = if (sh.sampleRate in 8000..96000) sh.sampleRate else 44100
+        val numSamples = (sampleRate * 0.7).toInt() // 700ms decay
+        val data = FloatArray(numSamples)
+        val freq = 440.0 * Math.pow(2.0, (rootKey - 69.0) / 12.0)
+        val phaseInc = (freq * 2.0 * Math.PI) / sampleRate
+        var phase = 0.0
+        for (i in 0 until numSamples) {
+            val env = Math.exp(-i.toDouble() / (sampleRate * 0.22)).toFloat()
+            val sine = Math.sin(phase).toFloat()
+            val harmonic2 = (0.28 * Math.sin(phase * 2.0)).toFloat()
+            data[i] = (sine + harmonic2) * env * 0.7f
+            phase += phaseInc
+        }
+        val loopStart = (numSamples * 0.2).toInt()
+        val loopEnd = (numSamples * 0.8).toInt()
+        return SampleBuffer(
+            id = sh.id,
+            name = "${sh.name} (Safe)",
+            data = data,
+            sampleRate = sampleRate,
+            rootKey = rootKey,
+            tuningCents = sh.pitchCorrection,
+            isLooped = true,
+            loopStart = loopStart,
+            loopEnd = loopEnd,
+            stereoChannel = sh.stereoChannel
+        )
+    }
+
     /**
      * Loads raw 16-bit PCM audio samples on-demand for all zones in a preset.
-     * Uses RandomAccessFile seeking directly to each sample start offset, avoiding loading the entire SF2.
+     * Uses RandomAccessFile seeking directly to each sample start offset.
+     * Protected against EOF, ROM samples, invalid offsets, and memory spikes.
      */
     fun loadSamplesForPreset(
         file: File,
@@ -307,48 +339,79 @@ object Sf2Parser {
         preset: SoundFontPreset
     ): Map<Int, SampleBuffer> {
         val cache = mutableMapOf<Int, SampleBuffer>()
-        if (metadata.smplChunkOffset <= 0L) return cache
-
-        RandomAccessFile(file, "r").use { raf ->
+        if (metadata.smplChunkOffset <= 0L || !file.exists()) {
             for (zone in preset.zones) {
                 val sh = zone.sampleHeader ?: continue
-                val sampleBuffer = cache.getOrPut(sh.id) {
-                    val numSamples = (sh.endOffset - sh.startOffset).toInt().coerceAtLeast(0)
-                    if (numSamples <= 0) {
-                        SampleBuffer(sh.id, sh.name, FloatArray(64), sh.sampleRate, sh.originalPitch, sh.pitchCorrection)
-                    } else {
-                        val fileByteOffset = metadata.smplChunkOffset + sh.startOffset * 2L
-                        raf.seek(fileByteOffset)
+                zone.sampleBuffer = cache.getOrPut(sh.id) { createFallbackBuffer(sh) }
+            }
+            return cache
+        }
 
-                        val byteCount = numSamples * 2
-                        val pcmBytes = ByteArray(byteCount)
-                        raf.readFully(pcmBytes)
+        try {
+            RandomAccessFile(file, "r").use { raf ->
+                val fileLen = raf.length()
+                for (zone in preset.zones) {
+                    val sh = zone.sampleHeader ?: continue
+                    val sampleBuffer = cache.getOrPut(sh.id) {
+                        try {
+                            // Check if this is a ROM sample (bit 15 set in sampleType, standard in Korg EXB banks)
+                            val isRomSample = (sh.sampleType and 0x8000) != 0
+                            val numSamples = (sh.endOffset - sh.startOffset).toInt()
+                            val fileByteOffset = metadata.smplChunkOffset + sh.startOffset * 2L
 
-                        val pcmBuffer = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN)
-                        val floatData = FloatArray(numSamples)
-                        for (i in 0 until numSamples) {
-                            val s16 = pcmBuffer.short
-                            floatData[i] = s16 / 32768.0f
+                            if (isRomSample || numSamples <= 0 || fileByteOffset < 0 || fileByteOffset >= fileLen) {
+                                createFallbackBuffer(sh)
+                            } else {
+                                val maxReadableBytes = (fileLen - fileByteOffset).coerceAtLeast(0)
+                                val safeNumSamples = minOf(numSamples.toLong(), maxReadableBytes / 2L, 4_000_000L).toInt()
+
+                                if (safeNumSamples <= 0) {
+                                    createFallbackBuffer(sh)
+                                } else {
+                                    raf.seek(fileByteOffset)
+                                    val byteCount = safeNumSamples * 2
+                                    val pcmBytes = ByteArray(byteCount)
+                                    raf.readFully(pcmBytes)
+
+                                    val pcmBuffer = ByteBuffer.wrap(pcmBytes).order(ByteOrder.LITTLE_ENDIAN)
+                                    val floatData = FloatArray(safeNumSamples)
+                                    for (i in 0 until safeNumSamples) {
+                                        val s16 = pcmBuffer.short
+                                        floatData[i] = s16 / 32768.0f
+                                    }
+
+                                    val loopStartRaw = (sh.startLoop - sh.startOffset).toInt()
+                                    val loopEndRaw = (sh.endLoop - sh.startOffset).toInt()
+                                    val loopStartIdx = loopStartRaw.coerceIn(0, (safeNumSamples - 1).coerceAtLeast(0))
+                                    val loopEndIdx = loopEndRaw.coerceIn(loopStartIdx, safeNumSamples)
+
+                                    SampleBuffer(
+                                        id = sh.id,
+                                        name = sh.name,
+                                        data = floatData,
+                                        sampleRate = if (sh.sampleRate in 4000..192000) sh.sampleRate else 44100,
+                                        rootKey = if (sh.originalPitch in 0..127) sh.originalPitch else 60,
+                                        tuningCents = sh.pitchCorrection,
+                                        isLooped = loopEndIdx > loopStartIdx,
+                                        loopStart = loopStartIdx,
+                                        loopEnd = loopEndIdx,
+                                        stereoChannel = sh.stereoChannel
+                                    )
+                                }
+                            }
+                        } catch (t: Throwable) {
+                            android.util.Log.e("Sf2Parser", "Safe fallback for sample id ${sh.id} in ${file.name}: ${t.message}")
+                            createFallbackBuffer(sh)
                         }
-
-                        val loopStartIdx = (sh.startLoop - sh.startOffset).toInt().coerceIn(0, numSamples - 1)
-                        val loopEndIdx = (sh.endLoop - sh.startOffset).toInt().coerceIn(loopStartIdx, numSamples)
-
-                        SampleBuffer(
-                            id = sh.id,
-                            name = sh.name,
-                            data = floatData,
-                            sampleRate = sh.sampleRate,
-                            rootKey = sh.originalPitch,
-                            tuningCents = sh.pitchCorrection,
-                            isLooped = loopEndIdx > loopStartIdx,
-                            loopStart = loopStartIdx,
-                            loopEnd = loopEndIdx,
-                            stereoChannel = sh.stereoChannel
-                        )
                     }
+                    zone.sampleBuffer = sampleBuffer
                 }
-                zone.sampleBuffer = sampleBuffer
+            }
+        } catch (t: Throwable) {
+            android.util.Log.e("Sf2Parser", "Error reading SF2 file ${file.absolutePath}: ${t.message}")
+            for (zone in preset.zones) {
+                val sh = zone.sampleHeader ?: continue
+                zone.sampleBuffer = cache.getOrPut(sh.id) { createFallbackBuffer(sh) }
             }
         }
         return cache

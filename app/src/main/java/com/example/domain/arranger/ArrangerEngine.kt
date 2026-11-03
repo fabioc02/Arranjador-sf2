@@ -29,6 +29,7 @@ class ArrangerEngine(
             state.resetTick()
             state.isPlaying.set(true)
             state.isPaused.set(false)
+            sendOverrides()
             clock.start()
             for (i in 0..15) {
                 MidiDispatcher.sendControlChange(i, 123, 0, 0L)
@@ -60,11 +61,17 @@ class ArrangerEngine(
         }
     }
 
-        private fun sendOverrides() {
+    private fun sendOverrides() {
         voiceManager?.channelRemap?.forEach { (channel, voice) ->
             MidiDispatcher.sendControlChange(channel, 0, voice.msb, System.nanoTime())
             MidiDispatcher.sendControlChange(channel, 32, voice.lsb, System.nanoTime())
             MidiDispatcher.sendProgramChange(channel, voice.msb, voice.lsb, voice.pc)
+        }
+        voiceManager?.channelVolumes?.forEach { (channel, vol) ->
+            MidiDispatcher.sendControlChange(channel, 7, vol, System.nanoTime())
+        }
+        voiceManager?.channelPans?.forEach { (channel, pan) ->
+            MidiDispatcher.sendControlChange(channel, 10, pan, System.nanoTime())
         }
     }
 
@@ -156,7 +163,10 @@ class ArrangerEngine(
                                 currentBassNote = state.currentBassNote
                             )
                             if (event.channel == 9 || event.channel == 8) {
-                                transposedNote = voiceManager?.drumNoteRemap?.get(transposedNote) ?: transposedNote
+                                transposedNote = com.example.domain.yamaha.YamahaDrumMap.resolveDrumNote(
+                                    originalNote = event.note,
+                                    userOverrides = voiceManager?.drumNoteRemap
+                                )
                             }
                             MidiDispatcher.sendNoteOn(event.channel, transposedNote, event.velocity, targetTimeNs)
                             activeTransposedNotes[Pair(event.channel, event.note)] = transposedNote
@@ -183,10 +193,10 @@ class ArrangerEngine(
                         if (override != null) {
                             MidiDispatcher.sendControlChange(event.channel, 0, override.msb, targetTimeNs)
                             MidiDispatcher.sendControlChange(event.channel, 32, override.lsb, targetTimeNs)
-                            com.example.MidiState.sendProgramChangeRaw(event.channel, override.pc, targetTimeNs)
+                            MidiDispatcher.sendProgramChange(event.channel, override.msb, override.lsb, override.pc)
                         } else {
-                            // Envia APENAS o PC. O estilo já enviou o CC0 e CC32 corretamente nos eventos de Control Change.
-                            com.example.MidiState.sendProgramChangeRaw(event.channel, event.program, targetTimeNs)
+                            // Envia PC via MidiDispatcher para sincronizar tanto Yamaha quanto SoundFont
+                            MidiDispatcher.sendProgramChange(event.channel, 0, 0, event.program)
                         }
                         
                         // Restore live drum params if this is the drum channel
@@ -210,7 +220,7 @@ class ArrangerEngine(
                         MidiDispatcher.sendPitchBend(event.channel, event.value and 0x7F, (event.value shr 7) and 0x7F, targetTimeNs)
                     }
                     is MidiEvent.SysEx -> {
-                        com.example.MidiState.sendSysEx(event.data)
+                        MidiDispatcher.sendSysEx(event.data)
                     }
                     else -> {}
                 }

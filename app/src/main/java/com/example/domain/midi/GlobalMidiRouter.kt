@@ -66,7 +66,8 @@ object GlobalMidiRouter {
                     // or in SoundFont mode with Local Control OFF, dispatch incoming notes to SoundFont synth!
                     val isChannelSoundFont = com.example.MidiState.voiceManager?.isChannelSoundFont(channel) == true ||
                         com.example.MidiRhythmState.tracks.any { it.channel - 1 == channel && it.soundFontVoice != null }
-                    if (isChannelSoundFont || (isSoundFontMode && (enableLiveMidiEcho || com.example.MidiRhythmState.isLocalControlOff))) {
+                    val shouldRouteToSynth = isSoundFontMode || isChannelSoundFont || enableLiveMidiEcho || com.example.MidiRhythmState.isLocalControlOff
+                    if (shouldRouteToSynth) {
                         if (isNoteOn) com.example.domain.midi_core.MidiDispatcher.sendNoteOn(channel, data1, data2)
                         else if (isNoteOff) com.example.domain.midi_core.MidiDispatcher.sendNoteOff(channel, data1, data2)
                         else if (command == 0xB0) com.example.domain.midi_core.MidiDispatcher.sendControlChange(channel, data1, data2)

@@ -51,28 +51,27 @@ object ArrangerEngine {
         val domainSource = sourceChord
         
         // Find the actual CASM settings for the given track channel in the given section
-        val casmSection = styleCasm?.sections?.find { it.name.equals(sectionName, ignoreCase = true) }
-        val actualCasm = casmSection?.channels?.find { it.destChannel == trackChannel }
+        val casmSection = styleCasm?.findSection(sectionName)
+        val actualCasm = casmSection?.findChannel(trackChannel)
+        
+        val isDrum = trackChannel == 8 || trackChannel == 9 || (actualCasm != null && (actualCasm.destChannel == 8 || actualCasm.destChannel == 9))
+        if (isDrum) {
+            return originalNote.coerceIn(0, 127)
+        }
         
         // Fallback CASM if not found
         val fallbackCasm = com.example.domain.models.CasmChannel(
             sourceChannel = trackChannel,
             destChannel = trackChannel,
-            ntr = com.example.domain.models.NTR.ROOT_FIXED,
-            ntt = if (isBass) com.example.domain.models.NTT.BASS else com.example.domain.models.NTT.CHORD,
-            highKey = if (isBass) 0 else 127,
-            noteLowLimit = 0,
-            noteHighLimit = 127
+            ntr = if (isBass) com.example.domain.models.NTR.ROOT_TRANS else com.example.domain.models.NTR.ROOT_FIXED,
+            ntt = if (isBass) com.example.domain.models.NTT.CHORD else com.example.domain.models.NTT.CHORD,
+            highKey = if (isBass) 3 else 127,
+            noteLowLimit = if (isBass) 28 else 0,
+            noteHighLimit = 127,
+            isBassOn = isBass
         )
         
-        var casmToUse = actualCasm ?: fallbackCasm
-        
-        // FORCE BASS RULE for Bass track, unless it's explicitly BYPASS.
-        // Yamaha uses different NTTs for Bass (like 02 Chord, 08, etc) but our users 
-        // expect the walking bass to not be destroyed by Chord snapping.
-        if (isBass && casmToUse.ntt != com.example.domain.models.NTT.BYPASS && casmToUse.ntr != com.example.domain.models.NTR.BYPASS) {
-            casmToUse = casmToUse.copy(ntt = com.example.domain.models.NTT.BASS)
-        }
+        val casmToUse = actualCasm ?: fallbackCasm
         
         val rule = com.example.domain.chord.YamahaRuleFactory.getRule(casmToUse.ntr, casmToUse.ntt)
         return rule.transpose(originalNote, domainSource, domainTarget, casmToUse)

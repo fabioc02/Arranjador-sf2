@@ -104,6 +104,7 @@ object MidiState {
     var fixedVelocity by mutableStateOf(100)
     var midiSchedulerMode by mutableStateOf(com.example.domain.midi.MidiSchedulerMode.AUTO)
     var soundOutputEngine by mutableStateOf(com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE)
+    var connectedMidiDeviceName by mutableStateOf<String?>(null)
     val soundFontRepository = com.example.domain.soundfont.repository.OnDemandSoundFontRepository()
     val soundFontSynth = com.example.domain.soundfont.synth.SoundFontSynthEngine(soundFontRepository)
     val audioTrackBackend = com.example.domain.audio.AudioTrackBackend()
@@ -121,6 +122,7 @@ object MidiState {
 
     fun ensureSoundFontAudioActive(context: android.content.Context) {
         oboeAudioBackend.attachContext(context)
+        oboeAudioBackend.maximizeSystemVolume(context)
         oboeAudioBackend.setRenderer(object : com.example.domain.audio.AudioRenderer {
             override fun render(buffer: FloatArray, frameCount: Int) {
                 soundFontSynth.render(buffer, 0, frameCount)
@@ -132,7 +134,10 @@ object MidiState {
     fun setSoundOutput(engine: com.example.domain.soundfont.model.SoundOutputEngine, context: android.content.Context? = null) {
         soundOutputEngine = engine
         if (engine != com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
-            context?.let { oboeAudioBackend.attachContext(it) }
+            context?.let { 
+                oboeAudioBackend.attachContext(it)
+                oboeAudioBackend.maximizeSystemVolume(it)
+            }
             oboeAudioBackend.setRenderer(object : com.example.domain.audio.AudioRenderer {
                 override fun render(buffer: FloatArray, frameCount: Int) {
                     soundFontSynth.render(buffer, 0, frameCount)
@@ -515,6 +520,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 MidiState.midiInputPorts.clear()
+                MidiState.connectedMidiDeviceName = null
 
                 val portsIterator = midiPorts.iterator()
                 while (portsIterator.hasNext()) {
@@ -555,10 +561,12 @@ class MainActivity : ComponentActivity() {
                         for (i in 0 until numInputs) {
                             val inputPort = device.openInputPort(i)
                             if (inputPort != null) {
-                                android.util.Log.d("MIDI-OPEN", "Added inputPort from device: ${deviceInfo.properties.getString(android.media.midi.MidiDeviceInfo.PROPERTY_NAME)}")
+                                val devName = deviceInfo.properties.getString(android.media.midi.MidiDeviceInfo.PROPERTY_NAME) ?: "Yamaha PSR-S750"
+                                android.util.Log.d("MIDI-OPEN", "Added inputPort from device: $devName")
+                                MidiState.connectedMidiDeviceName = devName
                                 MidiState.midiInputPorts.add(inputPort)
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                    android.widget.Toast.makeText(this@MainActivity, "MIDI Conectado (Out): " + deviceInfo.properties.getString(android.media.midi.MidiDeviceInfo.PROPERTY_NAME), android.widget.Toast.LENGTH_SHORT).show()
+                                    android.widget.Toast.makeText(this@MainActivity, "MIDI Conectado (Out): $devName", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
@@ -622,19 +630,13 @@ class MainActivity : ComponentActivity() {
                                     
                                     if (i + dataLength <= count) {
                                         val data1 = msg[offset + i].toInt() and 0x7F
-                                        val data2 = if (dataLength == 2) msg[offset + i + 1].toInt() and 0x7F else 0
+                                        val rawData2 = if (dataLength == 2) msg[offset + i + 1].toInt() and 0x7F else 0
                                         i += dataLength
+                                        
+                                        val data2 = if (command == 0x90 && rawData2 > 0) MidiState.applyVelocityCurve(rawData2) else rawData2
                                         
                                         if (command >= 0x80 && command < 0xF0) {
                                             MidiState.dispatchMidi(status, data1, data2, timestamp)
-                                        }
-                                        
-                                        if (dataLength == 2 && (command == 0x90 || command == 0x80)) {
-                                            val note = data1
-                                            val rawVelocity = data2
-                                            val velocity = if (command == 0x90 && rawVelocity > 0) MidiState.applyVelocityCurve(rawVelocity) else rawVelocity
-                                            val channel = status and 0x0F
-                                            val isRightVoice = (channel == 0 || channel == 1) && note > MidiState.splitPoint
                                         }
                                     } else {
                                         break

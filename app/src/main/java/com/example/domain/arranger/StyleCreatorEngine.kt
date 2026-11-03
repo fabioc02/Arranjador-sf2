@@ -201,22 +201,32 @@ class StyleCreatorEngine(
                             cc.cc == 129 -> pitchLsb = cc.value
                             cc.cc == 130 -> {
                                 pitchMsb = cc.value
-                                MidiState.sendPitchBend(track.channel - 1, pitchLsb, pitchMsb, targetTimeNs)
+                                MidiDispatcher.sendPitchBend(track.channel - 1, pitchLsb, pitchMsb, targetTimeNs)
                             }
-                            cc.cc < 128 -> MidiState.sendControlChange(track.channel - 1, cc.cc, cc.value, targetTimeNs)
+                            cc.cc < 128 -> MidiDispatcher.sendControlChange(track.channel - 1, cc.cc, cc.value, targetTimeNs)
                         }
                     }
                 }
                 
+                val isRecTrack = com.example.MidiRhythmState.isRecording &&
+                    (tracks.indexOf(track) == com.example.MidiRhythmState.selectedTrackIndex ||
+                     track.channel - 1 == com.example.domain.midi.GlobalMidiRouter.overrideRightHandChannel)
+
                 val notes = track.getNotesAt(currentTick)
                 if (notes != null && notes.isNotEmpty()) {
+                    val isDrum = track.isDrumTrack || (track.channel - 1 == 9) || (track.channel - 1 == 8)
                     for (i in 0 until notes.size) {
                         val note = notes[i]
-                        val scaledVel = (note.velocity * (track.volume / 100f)).toInt().coerceIn(1, 127)
+                        // Prevent comb filter / double triggering: if recording on this track, do not replay notes just played live within 60ms
+                        if (isRecTrack && (targetTimeNs - note.timestampNs < 60_000_000L)) {
+                            continue
+                        }
+
+                        val finalVel = note.velocity.coerceIn(1, 127)
                         var finalNote = note.note
                         
                         val detected = detectedChord
-                        if (detected != null) {
+                        if (detected != null && !isDrum) {
                             finalNote = casmEngine.processNote(
                                 originalNote = note.note,
                                 channel = track.channel - 1,
@@ -227,7 +237,7 @@ class StyleCreatorEngine(
                             )
                         }
                         
-                        MidiDispatcher.sendNoteOn(track.channel - 1, finalNote, scaledVel, targetTimeNs)
+                        MidiDispatcher.sendNoteOn(track.channel - 1, finalNote, finalVel, targetTimeNs)
                         val absOffTick = clockTick + note.durationTicks
                         synchronized(activePlayingNotes) {
                             activePlayingNotes.add(PlayingNote(track.channel - 1, finalNote, absOffTick.toLong()))

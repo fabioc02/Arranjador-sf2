@@ -634,6 +634,23 @@ androidx.compose.material3.AlertDialog(
                                 Text("📁 SoundFonts (Pastas)", fontSize = 11.sp, color = Color.White)
                             }
 
+                            val isUsb = MidiState.audioTrackBackend.isUsbInterfaceConnected
+                            val isP2 = MidiState.audioTrackBackend.isWiredHeadphonesConnected
+                            val devDesc = MidiState.audioTrackBackend.activeAudioDeviceDescription
+                            Button(
+                                onClick = {
+                                    MidiState.oboeAudioBackend.maximizeSystemVolume(uiContext)
+                                    android.widget.Toast.makeText(uiContext, "Saída: $devDesc • Volume Android no Máximo (100%)", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isUsb) Color(0xFF00796B) else if (isP2) Color(0xFF1565C0) else Color(0xFF455A64)
+                                ),
+                                modifier = Modifier.height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Text(if (isUsb) "🔌 USB Audio" else if (isP2) "🎧 P2 (Aux/Amp)" else "🔊 Falante", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+
                             val currentTrack = MidiRhythmState.tracks.getOrNull(MidiRhythmState.selectedTrackIndex)
                             val isCurrentBass = currentTrack?.channel == 11 || currentTrack?.name?.contains("Bass", true) == true
                             val rootName = if (isCurrentBass) "C (Fixo)" else (currentTrack?.sourceRoot?.let { com.example.domain.chord.NoteUtils.NOTE_NAMES[it.rootKey % 12] } ?: "C")
@@ -1036,13 +1053,18 @@ androidx.compose.material3.AlertDialog(
                                                                         val isSelected = track.soundFontVoice?.id == sf.id
                                                                         Card(
                                                                             onClick = {
-                                                                                track.soundFontVoice = sf
-                                                                                MidiRhythmState.applyTrackVoice(track, force = true)
-                                                                                MidiState.ensureSoundFontAudioActive(context)
-                                                                                if (MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
-                                                                                    MidiState.setSoundOutput(com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL, context)
+                                                                                try {
+                                                                                    track.soundFontVoice = sf
+                                                                                    MidiRhythmState.applyTrackVoice(track, force = true)
+                                                                                    MidiState.ensureSoundFontAudioActive(context)
+                                                                                    if (MidiState.soundOutputEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
+                                                                                        MidiState.setSoundOutput(com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL, context)
+                                                                                    }
+                                                                                } catch (e: Throwable) {
+                                                                                    android.util.Log.e("MidiRhythmCreator", "Error selecting voice", e)
+                                                                                } finally {
+                                                                                    showVoiceDialog = false
                                                                                 }
-                                                                                showVoiceDialog = false
                                                                             },
                                                                             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                                                             colors = CardDefaults.cardColors(
@@ -1252,23 +1274,23 @@ androidx.compose.material3.AlertDialog(
                                     
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(60.dp)) {
                                         Text("Vol", fontSize = 8.sp, color = textColor, modifier = Modifier.width(20.dp))
-                                        Slider(value = track.volume.toFloat(), valueRange = 0f..127f, onValueChange = { track.volume = it.toInt(); MidiState.sendControlChange(track.channel - 1, 7, track.volume) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
+                                        Slider(value = track.volume.toFloat(), valueRange = 0f..127f, onValueChange = { track.volume = it.toInt(); com.example.domain.midi_core.MidiDispatcher.sendControlChange(track.channel - 1, 7, track.volume) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(60.dp)) {
                                         Text("Pan", fontSize = 8.sp, color = textColor, modifier = Modifier.width(20.dp))
-                                        Slider(value = track.pan.toFloat(), valueRange = 0f..127f, onValueChange = { track.pan = it.toInt(); MidiState.sendControlChange(track.channel - 1, 10, track.pan) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
+                                        Slider(value = track.pan.toFloat(), valueRange = 0f..127f, onValueChange = { track.pan = it.toInt(); com.example.domain.midi_core.MidiDispatcher.sendControlChange(track.channel - 1, 10, track.pan) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(60.dp)) {
                                         Text("Rev", fontSize = 8.sp, color = textColor, modifier = Modifier.width(20.dp))
-                                        Slider(value = track.reverb.toFloat(), valueRange = 0f..127f, onValueChange = { track.reverb = it.toInt(); MidiState.sendControlChange(track.channel - 1, 91, track.reverb) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
+                                        Slider(value = track.reverb.toFloat(), valueRange = 0f..127f, onValueChange = { track.reverb = it.toInt(); com.example.domain.midi_core.MidiDispatcher.sendControlChange(track.channel - 1, 91, track.reverb) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(60.dp)) {
                                         Text("Cho", fontSize = 8.sp, color = textColor, modifier = Modifier.width(20.dp))
-                                        Slider(value = track.chorus.toFloat(), valueRange = 0f..127f, onValueChange = { track.chorus = it.toInt(); MidiState.sendControlChange(track.channel - 1, 93, track.chorus) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
+                                        Slider(value = track.chorus.toFloat(), valueRange = 0f..127f, onValueChange = { track.chorus = it.toInt(); com.example.domain.midi_core.MidiDispatcher.sendControlChange(track.channel - 1, 93, track.chorus) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.width(60.dp)) {
                                         Text("DSP", fontSize = 8.sp, color = textColor, modifier = Modifier.width(20.dp))
-                                        Slider(value = track.dsp.toFloat(), valueRange = 0f..127f, onValueChange = { track.dsp = it.toInt(); MidiState.sendControlChange(track.channel - 1, 94, track.dsp) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
+                                        Slider(value = track.dsp.toFloat(), valueRange = 0f..127f, onValueChange = { track.dsp = it.toInt(); com.example.domain.midi_core.MidiDispatcher.sendControlChange(track.channel - 1, 94, track.dsp) }, colors = sliderColors, modifier = Modifier.height(24.dp).weight(1f))
                                     }
                                 }
                                 

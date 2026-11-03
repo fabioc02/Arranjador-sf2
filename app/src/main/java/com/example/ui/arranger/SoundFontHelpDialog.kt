@@ -207,6 +207,58 @@ fun SoundFontHelpDialog(
                     }
                 }
 
+                // SOUNDFONT & YAMAHA DATALIST BANK MAPPING GUIDE
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "🎼 Guia de Organização de Bancos & SoundFonts (PSR-S750 & Arranger)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "O motor CASM calcula a transposição (NTR, NTT, Cntt e Bass On) antes de enviar a nota para o sintetizador SoundFont. Para que os timbres fiquem organizados e toquem no lugar certo, utilize as categorias e bancos abaixo:",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        
+                        HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                        
+                        val bankGuides = listOf(
+                            Triple("🎹 Pianos & E.Pianos", "Banco 0 / Prg 0..7", "Grand Piano, Bright, Rhodes, DX7, Clavi, Harpsichord"),
+                            Triple("🎸 Violões & Guitarras", "Banco 0 / Prg 24..31", "Nylon Guitar, Steel Guitar, Clean Solid, Jazz Gtr, Overdrive"),
+                            Triple("🎸 Baixos (Bass)", "Banco 0 / Prg 32..39", "Finger Bass, Acoustic Bass, Pick Bass, Fretless, Synth Bass"),
+                            Triple("🎻 Cordas (Strings & Pads)", "Banco 0 / Prg 40..51", "Concert Strings, Tremolo, Pizzicato, Harp, Slow Strings, Warm Pad"),
+                            Triple("🎺 Metais & Sax", "Banco 0 / Prg 56..79", "Trumpet, Trombone, French Horn, Brass Section, Sax Tenor/Alto, Flute"),
+                            Triple("💨 Órgãos & Acordeons", "Banco 0 / Prg 16..23", "Drawbar Organ, Jazz Rotary, Rock Organ, Sanfona/Acordeon"),
+                            Triple("🥁 Baterias & Percussão", "Canal 10 / Banco 127", "Standard Kit 1/2, Korg Triton Standard Kit 2, Percussão Latina")
+                        )
+                        
+                        bankGuides.forEach { (catTitle, bankInfo, examples) ->
+                            Column(modifier = Modifier.padding(vertical = 2.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(catTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(bankInfo, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                }
+                                Text(examples, fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                            }
+                        }
+                        
+                        Text(
+                            "💡 Dica: Ao carregar pastas do Triton com 70+ timbres, use o botão de etiqueta (🏷️) na lista para associar qualquer timbre à categoria desejada.",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
                 // METHOD 1: OPEN FOLDER (SAF)
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

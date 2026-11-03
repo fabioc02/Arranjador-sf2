@@ -27,11 +27,11 @@ enum class NTT(val id: Int, val displayName: String) {
     BASS(3, "Bass"),
     MELODIC_MINOR(4, "Melodic Minor"),
     HARMONIC_MINOR(5, "Harmonic Minor"),
-    NATURAL_MINOR(6, "Natural Minor"),
-    DORIAN(7, "Dorian"),
-    FLAT_FIFTH(8, "Flat Fifth"),
-    MELODIC_MAJOR(9, "Melodic Major"),
-    MIXOLYDIAN(10, "Mixolydian"),
+    HARMONIC_MINOR_5TH(6, "Harmonic Minor 5th"),
+    NATURAL_MINOR(7, "Natural Minor"),
+    NATURAL_MINOR_5TH(8, "Natural Minor 5th (Bass Table)"),
+    DORIAN(9, "Dorian"),
+    DORIAN_5TH(10, "Dorian 5th"),
     PENTATONIC(11, "Pentatonic"),
     UNKNOWN(-1, "Unknown");
 
@@ -43,15 +43,16 @@ enum class NTT(val id: Int, val displayName: String) {
                 0 -> BYPASS
                 1 -> MELODY
                 2 -> CHORD
-                3, 0x7F -> BASS
+                3 -> BASS
                 4 -> MELODIC_MINOR
                 5 -> HARMONIC_MINOR
-                6 -> NATURAL_MINOR
-                7, 8 -> DORIAN
-                9 -> MELODIC_MAJOR
-                10 -> MIXOLYDIAN
+                6 -> HARMONIC_MINOR_5TH
+                7 -> NATURAL_MINOR
+                8 -> NATURAL_MINOR_5TH // Official Yamaha Bass Table (0x08 / 0x88)
+                9 -> DORIAN
+                10 -> DORIAN_5TH
                 11 -> PENTATONIC
-                else -> UNKNOWN
+                else -> if (baseId in 12..127) CHORD else UNKNOWN
             }
         }
     }
@@ -100,7 +101,12 @@ data class CasmChannel(
 data class CasmSection(
     val name: String = "Main",
     val channels: List<CasmChannel> = emptyList()
-)
+) {
+    fun findChannel(channel: Int): CasmChannel? {
+        return channels.find { it.sourceChannel == channel }
+            ?: channels.find { it.destChannel == channel }
+    }
+}
 
 data class CasmMetrics(
     val sectionsCount: Int = 0,
@@ -119,4 +125,23 @@ data class StyleCasm(
     val metrics: CasmMetrics = CasmMetrics(),
     val warnings: List<String> = emptyList(),
     val rawDump: com.example.data.parser.models.RawCasmDump? = null
-)
+) {
+    fun findSection(sectionName: String): CasmSection? {
+        val clean = sectionName.trim()
+        // 1. Exact match
+        sections.find { it.name.trim().equals(clean, ignoreCase = true) }?.let { return it }
+        // 2. Space-insensitive match ("Main A" vs "MainA")
+        val noSpace = clean.replace(" ", "")
+        sections.find { it.name.replace(" ", "").equals(noSpace, ignoreCase = true) }?.let { return it }
+        // 3. Yamaha Break <-> Fill In BA alias
+        if (clean.equals("Break", ignoreCase = true)) {
+            sections.find { it.name.trim().equals("Fill In BA", ignoreCase = true) }?.let { return it }
+        }
+        if (clean.equals("Fill In BA", ignoreCase = true)) {
+            sections.find { it.name.trim().equals("Break", ignoreCase = true) }?.let { return it }
+        }
+        // 4. Prefix match
+        sections.find { it.name.startsWith(clean, ignoreCase = true) || clean.startsWith(it.name, ignoreCase = true) }?.let { return it }
+        return sections.firstOrNull()
+    }
+}

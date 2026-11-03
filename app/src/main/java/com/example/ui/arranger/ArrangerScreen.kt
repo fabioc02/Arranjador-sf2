@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.domain.arranger.ArrangerViewModel
 import com.example.domain.models.StyleSection
@@ -119,6 +120,95 @@ fun ArrangerScreen(
                         IconButton(onClick = onOpenSettings) {
                             Icon(Icons.Default.Settings, contentDescription = "Configurações MIDI")
                         }
+                    }
+                }
+            }
+        }
+
+        // SOUND ENGINE SELECTOR CARD (PSR-S750 vs SoundFonts)
+        val currentEngine = com.example.MidiState.soundOutputEngine
+        val isHardwareConnected = com.example.MidiState.midiInputPorts.isNotEmpty()
+        val connectedDevice = com.example.MidiState.connectedMidiDeviceName
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (currentEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE)
+                    Color(0xFF1A2634) else Color(0xFF281834)
+            )
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Motor Gerador de Som",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF90A4AE)
+                        )
+                        Text(
+                            text = when (currentEngine) {
+                                com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE -> "🎹 Yamaha PSR-S750 (Hardware)"
+                                com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL -> "🎵 SoundFonts Interno (SF2 Celular)"
+                                com.example.domain.soundfont.model.SoundOutputEngine.HYBRID_BOTH -> "🔀 Modo Híbrido (Ambos)"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val next = when (currentEngine) {
+                                com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE -> com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL
+                                com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL -> com.example.domain.soundfont.model.SoundOutputEngine.HYBRID_BOTH
+                                com.example.domain.soundfont.model.SoundOutputEngine.HYBRID_BOTH -> com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE
+                            }
+                            com.example.MidiState.setSoundOutput(next, context)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = when (currentEngine) {
+                                com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE -> Color(0xFF00ACC1)
+                                com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL -> Color(0xFFAB47BC)
+                                com.example.domain.soundfont.model.SoundOutputEngine.HYBRID_BOTH -> Color(0xFF26A69A)
+                            }
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("Alternar Modo", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Surface(
+                    color = Color.Black.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val statusText = if (currentEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE) {
+                            if (isHardwareConnected) "✓ Conectado: ${connectedDevice ?: "Yamaha PSR-S750"} • Som sai nos alto-falantes do teclado"
+                            else "⚠️ Conecte o cabo USB ao teclado Yamaha PSR-S750 para ouvir os sons internos"
+                        } else if (currentEngine == com.example.domain.soundfont.model.SoundOutputEngine.SOUNDFONT_INTERNAL) {
+                            "🔊 Som gerado no celular/tablet via SoundFonts (Korg Triton SF2)"
+                        } else {
+                            "🔀 Som simultâneo: Hardware PSR-S750 + SoundFonts no celular"
+                        }
+
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (currentEngine == com.example.domain.soundfont.model.SoundOutputEngine.YAMAHA_HARDWARE && !isHardwareConnected)
+                                Color(0xFFFFB74D) else Color(0xFF81C784)
+                        )
                     }
                 }
             }

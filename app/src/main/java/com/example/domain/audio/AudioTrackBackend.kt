@@ -17,8 +17,14 @@ class AudioTrackBackend : AudioBackend {
     private var isRunning = false
     private var renderThread: Thread? = null
 
-    // USB Audio Interface Detection & Routing
+    // Audio Output & USB Interface Detection
     var connectedUsbDeviceName: String? = null
+        private set
+    var activeAudioDeviceDescription: String = "Alto-falante do Celular"
+        private set
+    var isUsbInterfaceConnected: Boolean = false
+        private set
+    var isWiredHeadphonesConnected: Boolean = false
         private set
     var onUsbDeviceStateChanged: ((deviceName: String?, isConnected: Boolean) -> Unit)? = null
     private var audioManager: AudioManager? = null
@@ -29,45 +35,82 @@ class AudioTrackBackend : AudioBackend {
     }
 
     /**
-     * Attaches an Android Context to monitor USB audio interface connection in real-time.
+     * Attaches an Android Context to monitor USB audio interface connection in real-time
+     * and optimize system volume so Android does not attenuate the output signal.
      */
     fun attachContext(context: Context) {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
         this.audioManager = am
 
-        // Initial check for connected USB audio interfaces
-        scanForUsbAudioInterface(am)
+        maximizeSystemVolume(am)
+
+        // Initial check for connected USB audio interfaces and P2 line out
+        scanForAudioDevices(am)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             deviceCallback = object : AudioDeviceCallback() {
                 override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-                    scanForUsbAudioInterface(am)
+                    scanForAudioDevices(am)
                 }
 
                 override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-                    scanForUsbAudioInterface(am)
+                    scanForAudioDevices(am)
                 }
             }
             am.registerAudioDeviceCallback(deviceCallback, null)
         }
     }
 
-    private fun scanForUsbAudioInterface(am: AudioManager) {
+    fun maximizeSystemVolume(am: AudioManager) {
+        try {
+            val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            am.setStreamVolume(AudioManager.STREAM_MUSIC, maxVol, 0)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun scanForAudioDevices(am: AudioManager) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
             val usbDevice = devices.find {
-                it.type == AudioDeviceInfo.TYPE_USB_DEVICE || it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                it.type == AudioDeviceInfo.TYPE_USB_DEVICE || 
+                it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
+            }
+            val wiredDevice = devices.find {
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
+                it.type == AudioDeviceInfo.TYPE_AUX_LINE
             }
 
-            if (usbDevice != null) {
-                val name = usbDevice.productName?.toString() ?: "Interface USB"
-                connectedUsbDeviceName = name
-                audioTrack?.setPreferredDevice(usbDevice)
-                onUsbDeviceStateChanged?.invoke(name, true)
-            } else {
-                connectedUsbDeviceName = null
-                audioTrack?.setPreferredDevice(null)
-                onUsbDeviceStateChanged?.invoke(null, false)
+            when {
+                usbDevice != null -> {
+                    val name = usbDevice.productName?.toString()?.ifBlank { null } ?: "Interface USB"
+                    connectedUsbDeviceName = name
+                    isUsbInterfaceConnected = true
+                    isWiredHeadphonesConnected = false
+                    activeAudioDeviceDescription = "Interface USB: $name"
+                    audioTrack?.setPreferredDevice(usbDevice)
+                    onUsbDeviceStateChanged?.invoke(name, true)
+                }
+                wiredDevice != null -> {
+                    connectedUsbDeviceName = null
+                    isUsbInterfaceConnected = false
+                    isWiredHeadphonesConnected = true
+                    activeAudioDeviceDescription = "Cabo P2 / Saída Auxiliar (Teclado)"
+                    audioTrack?.setPreferredDevice(wiredDevice)
+                    onUsbDeviceStateChanged?.invoke(null, false)
+                }
+                else -> {
+                    connectedUsbDeviceName = null
+                    isUsbInterfaceConnected = false
+                    isWiredHeadphonesConnected = false
+                    activeAudioDeviceDescription = "Alto-falante do Celular"
+                    audioTrack?.setPreferredDevice(null)
+                    onUsbDeviceStateChanged?.invoke(null, false)
+                }
             }
         }
     }
@@ -108,9 +151,10 @@ class AudioTrackBackend : AudioBackend {
 
         val track = trackBuilder.build()
         this.audioTrack = track
+        track.setVolume(1.0f)
 
-        // Route to USB device if available
-        audioManager?.let { scanForUsbAudioInterface(it) }
+        // Route to USB device or P2 if available
+        audioManager?.let { scanForAudioDevices(it) }
 
         track.play()
         isRunning = true

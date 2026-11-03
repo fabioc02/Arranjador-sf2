@@ -1,0 +1,101 @@
+// KORG TRITON - Standard_Kit_2
+<control>
+default_path=samples/
+
+<global>
+loop_mode=one_shot
+
+<group> key=35
+<region> sample=samples/N035_Acoustic_Bass_Drum.wav lokey=35 hikey=35 pitch_keycenter=35
+<group> key=36
+<region> sample=samples/N036_Bass_Drum_1.wav lokey=36 hikey=36 pitch_keycenter=36
+<group> key=37
+<region> sample=samples/N037_Side_Stick.wav lokey=37 hikey=37 pitch_keycenter=37
+<group> key=38
+<region> sample=samples/N038_Acoustic_Snare.wav lokey=38 hikey=38 pitch_keycenter=38
+<group> key=39
+<region> sample=samples/N039_Hand_Clap.wav lokey=39 hikey=39 pitch_keycenter=39
+<group> key=40
+<region> sample=samples/N040_Electric_Snare.wav lokey=40 hikey=40 pitch_keycenter=40
+<group> key=41
+<region> sample=samples/N041_Low_Floor_Tom.wav lokey=41 hikey=41 pitch_keycenter=41
+<group> key=42
+<region> sample=samples/N042_Closed_HiHat.wav lokey=42 hikey=42 pitch_keycenter=42
+<group> key=43
+<region> sample=samples/N043_High_Floor_Tom.wav lokey=43 hikey=43 pitch_keycenter=43
+<group> key=44
+<region> sample=samples/N044_Pedal_HiHat.wav lokey=44 hikey=44 pitch_keycenter=44
+<group> key=45
+<region> sample=samples/N045_Low_Tom.wav lokey=45 hikey=45 pitch_keycenter=45
+<group> key=46
+<region> sample=samples/N046_Open_HiHat.wav lokey=46 hikey=46 pitch_keycenter=46
+<group> key=47
+<region> sample=samples/N047_Low_Mid_Tom.wav lokey=47 hikey=47 pitch_keycenter=47
+<group> key=48
+<region> sample=samples/N048_Hi_Mid_Tom.wav lokey=48 hikey=48 pitch_keycenter=48
+<group> key=49
+<region> sample=samples/N049_Crash_Cymbal_1.wav lokey=49 hikey=49 pitch_keycenter=49
+<group> key=50
+<region> sample=samples/N050_High_Tom.wav lokey=50 hikey=50 pitch_keycenter=50
+<group> key=51
+<region> sample=samples/N051_Ride_Cymbal_1.wav lokey=51 hikey=51 pitch_keycenter=51
+<group> key=52
+<region> sample=samples/N052_Chinese_Cymbal.wav lokey=52 hikey=52 pitch_keycenter=52
+<group> key=53
+<region> sample=samples/N053_Ride_Bell.wav lokey=53 hikey=53 pitch_keycenter=53
+<group> key=54
+<region> sample=samples/N054_Tambourine.wav lokey=54 hikey=54 pitch_keycenter=54
+<group> key=55
+<region> sample=samples/N055_Splash_Cymbal.wav lokey=55 hikey=55 pitch_keycenter=55
+<group> key=56
+<region> sample=samples/N056_Cowbell.wav lokey=56 hikey=56 pitch_keycenter=56
+<group> key=57
+<region> sample=samples/N057_Crash_Cymbal_2.wav lokey=57 hikey=57 pitch_keycenter=57
+<group> key=58
+<region> sample=samples/N058_Vibraslap.wav lokey=58 hikey=58 pitch_keycenter=58
+<group> key=59
+<region> sample=samples/N059_Ride_Cymbal_2.wav lokey=59 hikey=59 pitch_keycenter=59
+<group> key=60
+<region> sample=samples/N060_Hi_Bongo.wav lokey=60 hikey=60 pitch_keycenter=60
+<group> key=61
+<region> sample=samples/N061_Low_Bongo.wav lokey=61 hikey=61 pitch_keycenter=61
+<group> key=62
+<region> sample=samples/N062_Mute_Hi_Conga.wav lokey=62 hikey=62 pitch_keycenter=62
+<group> key=63
+<region> sample=samples/N063_Open_Hi_Conga.wav lokey=63 hikey=63 pitch_keycenter=63
+<group> key=64
+<region> sample=samples/N064_Low_Conga.wav lokey=64 hikey=64 pitch_keycenter=64
+<group> key=65
+<region> sample=samples/N065_High_Timbale.wav lokey=65 hikey=65 pitch_keycenter=65
+<group> key=66
+<region> sample=samples/N066_Low_Timbale.wav lokey=66 hikey=66 pitch_keycenter=66
+<group> key=67
+<region> sample=samples/N067_High_Agogo.wav lokey=67 hikey=67 pitch_keycenter=67
+<group> key=68
+<region> sample=samples/N068_Low_Agogo.wav lokey=68 hikey=68 pitch_keycenter=68
+<group> key=69
+<region> sample=samples/N069_Cabasa.wav lokey=69 hikey=69 pitch_keycenter=69
+<group> key=70
+<region> sample=samples/N070_Maracas.wav lokey=70 hikey=70 pitch_keycenter=70
+<group> key=71
+<region> sample=samples/N071_Short_Whistle.wav lokey=71 hikey=71 pitch_keycenter=71
+<group> key=72
+<region> sample=samples/N072_Long_Whistle.wav lokey=72 hikey=72 pitch_keycenter=72
+<group> key=73
+<region> sample=samples/N073_Short_Guiro.wav lokey=73 hikey=73 pitch_keycenter=73
+<group> key=74
+<region> sample=samples/N074_Long_Guiro.wav lokey=74 hikey=74 pitch_keycenter=74
+<group> key=75
+<region> sample=samples/N075_Claves.wav lokey=75 hikey=75 pitch_keycenter=75
+<group> key=76
+<region> sample=samples/N076_Hi_Wood_Block.wav lokey=76 hikey=76 pitch_keycenter=76
+<group> key=77
+<region> sample=samples/N077_Low_Wood_Block.wav lokey=77 hikey=77 pitch_keycenter=77
+<group> key=78
+<region> sample=samples/N078_Mute_Cuica.wav lokey=78 hikey=78 pitch_keycenter=78
+<group> key=79
+<region> sample=samples/N079_Open_Cuica.wav lokey=79 hikey=79 pitch_keycenter=79
+<group> key=80
+<region> sample=samples/N080_Mute_Triangle.wav lokey=80 hikey=80 pitch_keycenter=80
+<group> key=81
+<region> sample=samples/N081_Open_Triangle.wav lokey=81 hikey=81 pitch_keycenter=81

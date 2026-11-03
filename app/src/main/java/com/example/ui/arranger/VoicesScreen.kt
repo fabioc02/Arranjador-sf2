@@ -419,10 +419,26 @@ fun VoicesScreen(
                             instruments = instruments,
                             drumKits = drumKits,
                             currentYamahaVoice = currentYamahaVoice,
+                            selectedChannelIndex = selectedChannelIndex,
+                            scope = scope,
                             onSelectVoice = { voice ->
                                 viewModel.voiceManager.setMapping(selectedChannelIndex, voice)
+                                if (MidiState.soundOutputEngine == SoundOutputEngine.SOUNDFONT_INTERNAL) {
+                                    MidiState.setSoundOutput(SoundOutputEngine.YAMAHA_HARDWARE, context)
+                                }
                                 MidiState.sendProgramChange(selectedChannelIndex, voice.msb, voice.lsb, voice.pc)
+                                scope.launch {
+                                    try {
+                                        val auditionNote = if (isDrumChannel) 36 else 60
+                                        MidiState.sendNoteOn(selectedChannelIndex, auditionNote, 105)
+                                        kotlinx.coroutines.delay(420)
+                                        MidiState.sendNoteOff(selectedChannelIndex, auditionNote, 0)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
                                 triggerRecompose++
+                                Toast.makeText(context, "Voz Yamaha enviada ao canal ${selectedChannelIndex + 1}: ${voice.name}", Toast.LENGTH_SHORT).show()
                             }
                         )
                     } else {
@@ -471,11 +487,35 @@ private fun YamahaBrowserView(
     instruments: List<YamahaVoice>,
     drumKits: List<YamahaVoice>,
     currentYamahaVoice: YamahaVoice?,
+    selectedChannelIndex: Int,
+    scope: kotlinx.coroutines.CoroutineScope,
     onSelectVoice: (YamahaVoice) -> Unit
 ) {
     val voiceList = if (isDrumChannel) drumKits else instruments
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("Todos") }
+    val context = LocalContext.current
+    val isConnected = MidiState.midiInputPorts.isNotEmpty()
+    val connectedDevice = MidiState.connectedMidiDeviceName
+
+    // Hardware status card
+    Surface(
+        color = if (isConnected) Color(0xFF1B5E20).copy(alpha = 0.25f) else Color(0xFFE65100).copy(alpha = 0.2f),
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isConnected) "✓ Conectado: ${connectedDevice ?: "Yamaha PSR-S750"} • Sinais MIDI ativos"
+                else "⚠️ Conecte o cabo USB-MIDI do PSR-S750 para ouvir os timbres no teclado",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isConnected) Color(0xFF81C784) else Color(0xFFFFB74D)
+            )
+        }
+    }
 
     val categories = if (isDrumChannel) listOf("Todos") else listOf(
         "Todos", "Piano", "E.Piano", "Órgão", "Guitarra", "Baixo", "Cordas", "Metais", "Sax", "Pad / Coro", "Sintetizador"
@@ -484,7 +524,7 @@ private fun YamahaBrowserView(
     OutlinedTextField(
         value = searchQuery,
         onValueChange = { searchQuery = it },
-        label = { Text("Buscar timbre Yamaha...") },
+        label = { Text("Buscar timbre Yamaha PSR-S750...") },
         modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
         singleLine = true
     )
@@ -536,14 +576,44 @@ private fun YamahaBrowserView(
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
                     contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                )
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(voice.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                    Text(
-                        "${voice.msb}-${voice.lsb}-${voice.pc}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(voice.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                        Text(
+                            "MSB: ${voice.msb} • LSB: ${voice.lsb} • PC: ${voice.pc}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            if (MidiState.soundOutputEngine == SoundOutputEngine.SOUNDFONT_INTERNAL) {
+                                MidiState.setSoundOutput(SoundOutputEngine.YAMAHA_HARDWARE, context)
+                            }
+                            MidiState.sendProgramChange(selectedChannelIndex, voice.msb, voice.lsb, voice.pc)
+                            scope.launch {
+                                try {
+                                    val auditionNote = if (isDrumChannel) 36 else 60
+                                    MidiState.sendNoteOn(selectedChannelIndex, auditionNote, 105)
+                                    kotlinx.coroutines.delay(420)
+                                    MidiState.sendNoteOff(selectedChannelIndex, auditionNote, 0)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text("🔊", fontSize = 13.sp)
+                    }
                 }
             }
         }

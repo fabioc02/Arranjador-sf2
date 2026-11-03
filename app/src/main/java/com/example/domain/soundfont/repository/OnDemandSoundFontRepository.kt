@@ -263,18 +263,23 @@ class OnDemandSoundFontRepository(
 
             val file = File(metadata.filePath)
             if (file.exists()) {
-                when (metadata.type) {
-                    SoundFontType.SF2 -> {
-                        Sf2Parser.loadSamplesForPreset(file, metadata, rawPreset)
+                try {
+                    when (metadata.type) {
+                        SoundFontType.SF2 -> {
+                            Sf2Parser.loadSamplesForPreset(file, metadata, rawPreset)
+                        }
+                        SoundFontType.SFZ -> {
+                            SfzParser.loadSamplesForPreset(file, rawPreset)
+                        }
                     }
-                    SoundFontType.SFZ -> {
-                        SfzParser.loadSamplesForPreset(file, rawPreset)
-                    }
+                } catch (t: Throwable) {
+                    android.util.Log.e("SoundFontRepo", "Failed loading samples for ${metadata.filePath}: ${t.message}")
                 }
             }
 
             loadedPresetCache[cacheKey] = rawPreset
             touchAccess(cacheKey)
+            recalculateRamMb()
             return rawPreset
         }
     }
@@ -335,6 +340,7 @@ class OnDemandSoundFontRepository(
         evictedPreset?.zones?.forEach { zone ->
             zone.sampleBuffer = null
         }
+        recalculateRamMb()
     }
 
     fun pinVoices(voices: Collection<com.example.domain.soundfont.model.SoundFontVoice>) {
@@ -382,10 +388,10 @@ class OnDemandSoundFontRepository(
         return loadedPresetCache.containsKey(cacheKey)
     }
 
-    /**
-     * Calculates the estimated RAM consumption (in MB) of loaded PCM sample buffers.
-     */
-    fun getLoadedRamMb(): Float {
+    @Volatile
+    private var cachedRamMb: Float = 0.0f
+
+    private fun recalculateRamMb() {
         var totalFloats = 0L
         loadedPresetCache.values.forEach { preset ->
             preset.zones.forEach { zone ->
@@ -393,22 +399,30 @@ class OnDemandSoundFontRepository(
             }
         }
         val bytes = totalFloats * 4L
-        return (bytes / (1024f * 1024f))
+        cachedRamMb = bytes / (1024f * 1024f)
     }
+
+    /**
+     * Returns precomputed RAM consumption (MB). Zero overhead in UI composables.
+     */
+    fun getLoadedRamMb(): Float = cachedRamMb
 
     /**
      * Selectively unloads any presets from RAM that are not currently assigned to active parts/tracks.
      */
     fun evictUnused(activeKeys: Set<String>) {
         val iterator = loadedPresetCache.entries.iterator()
+        var evictedAny = false
         while (iterator.hasNext()) {
             val entry = iterator.next()
             if (!activeKeys.contains(entry.key)) {
                 entry.value.zones.forEach { it.sampleBuffer = null }
                 iterator.remove()
                 accessOrder.remove(entry.key)
+                evictedAny = true
             }
         }
+        if (evictedAny) recalculateRamMb()
     }
 
     fun clearCache() {
@@ -417,5 +431,6 @@ class OnDemandSoundFontRepository(
         }
         loadedPresetCache.clear()
         accessOrder.clear()
+        recalculateRamMb()
     }
 }

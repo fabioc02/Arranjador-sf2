@@ -30,9 +30,15 @@ class CasmPlaybackEngine(
         currentBassNote: Int,
         overrideSourceRootKey: Int? = null
     ): Int {
-        val casmSection = currentCasmSections.find { it.name == sectionName }
+        val cleanSection = sectionName.trim()
+        val casmSection = currentCasmSections.find { it.name.trim().equals(cleanSection, ignoreCase = true) }
+            ?: currentCasmSections.find { it.name.replace(" ", "").equals(cleanSection.replace(" ", ""), ignoreCase = true) }
+            ?: if (cleanSection.equals("Break", ignoreCase = true)) currentCasmSections.find { it.name.trim().equals("Fill In BA", ignoreCase = true) } else null
+            ?: if (cleanSection.equals("Fill In BA", ignoreCase = true)) currentCasmSections.find { it.name.trim().equals("Break", ignoreCase = true) } else null
+            ?: currentCasmSections.firstOrNull()
 
         val rule = casmSection?.channels?.find { it.sourceChannel == channel }
+            ?: casmSection?.channels?.find { it.destChannel == channel }
             ?: com.example.domain.models.CasmChannel(
                 sourceChannel = channel,
                 destChannel = channel,
@@ -40,16 +46,18 @@ class CasmPlaybackEngine(
                 sourceChordType = "Maj",
                 ntr = if (channel == 8 || channel == 9) com.example.domain.models.NTR.BYPASS else com.example.domain.models.NTR.ROOT_FIXED,
                 ntt = when (channel) {
-                    8, 9 -> com.example.domain.models.NTT.BYPASS // Drums (Ch 9 & 10 = channels 8 & 9)
-                    10 -> com.example.domain.models.NTT.BASS // Bass (Ch 11 = channel 10)
+                    8, 9 -> com.example.domain.models.NTT.BYPASS // Drums
+                    10 -> com.example.domain.models.NTT.BASS // Bass
                     else -> com.example.domain.models.NTT.CHORD // Chords
                 }
             )
 
-        // Yamaha engine explicitly forces BYPASS for any track routed to drum channels (MIDI ch 9 & 10, 0-indexed 8 & 9)
-        val isDrumTrack = rule.destChannel == 8 || rule.destChannel == 9
-        var effNtr = if (isDrumTrack) com.example.domain.models.NTR.BYPASS else rule.ntr
-        var effNtt = if (isDrumTrack) com.example.domain.models.NTT.BYPASS else rule.ntt
+        // Yamaha rule: Any track routed to drum channels (MIDI ch 9 & 10, 0-indexed 8 & 9) is strictly BYPASS
+        val isDrumTrack = channel == 8 || channel == 9 || rule.destChannel == 8 || rule.destChannel == 9 ||
+                          rule.partName.contains("drum", ignoreCase = true) || rule.partName.contains("rhythm", ignoreCase = true)
+        if (isDrumTrack || rule.ntr == com.example.domain.models.NTR.BYPASS || rule.ntt == com.example.domain.models.NTT.BYPASS) {
+            return originalNote.coerceIn(0, 127)
+        }
         
         val sourceRootKey = overrideSourceRootKey ?: arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B").indexOf(rule.sourceChordRoot).takeIf { it >= 0 } ?: 0
         val sourceChordType = when (rule.sourceChordType.lowercase()) {
@@ -62,12 +70,14 @@ class CasmPlaybackEngine(
         }
         val sourceChord = Chord(rootKey = sourceRootKey, type = sourceChordType, bassKey = sourceRootKey)
         
-        // If Bass On bit was set in Ctb2 for the bass part, use Bass NTT
-        if (rule.destChannel == 10 && rule.isBassOn && effNtt != com.example.domain.models.NTT.BYPASS) {
-            effNtt = com.example.domain.models.NTT.BASS
+        // Effective destination chord with on-bass note if specified
+        val effectiveDestChord = if (currentBassNote in 0..127 && (rule.isBassOn || rule.destChannel == 10)) {
+            currentChord.copy(bassKey = currentBassNote % 12)
+        } else {
+            currentChord
         }
 
-        val yamahaRule = YamahaRuleFactory.getRule(effNtr, effNtt)
-        return yamahaRule.transpose(originalNote, sourceChord, currentChord, rule)
+        val yamahaRule = YamahaRuleFactory.getRule(rule.ntr, rule.ntt)
+        return yamahaRule.transpose(originalNote, sourceChord, effectiveDestChord, rule)
     }
 }

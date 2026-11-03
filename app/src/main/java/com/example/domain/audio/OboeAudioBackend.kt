@@ -51,4 +51,21 @@ class OboeAudioBackend(
 
     val isNativeActive: Boolean
         get() = usingNative && NativeAudioBridge.isRunning()
+
+    val connectedUsbDeviceName: String?
+        get() = fallbackBackend.connectedUsbDeviceName
+
+    val activeAudioDeviceDescription: String
+        get() = fallbackBackend.activeAudioDeviceDescription
+
+    val isUsbInterfaceConnected: Boolean
+        get() = fallbackBackend.isUsbInterfaceConnected
+
+    val isWiredHeadphonesConnected: Boolean
+        get() = fallbackBackend.isWiredHeadphonesConnected
+
+    fun maximizeSystemVolume(context: Context) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager ?: return
+        fallbackBackend.maximizeSystemVolume(am)
+    }
 }

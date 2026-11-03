@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "arranger_native_audio::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-arranger_native_audio-Debug-42233e4999fb7869f0be.json",
+					"jsonFile" : "target-arranger_native_audio-Debug-50152dc1792348c3b49f.json",
 					"name" : "arranger_native_audio",
 					"projectIndex" : 0
 				}
@@ -49,7 +49,7 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "/app/applet/app/.cxx/Debug/5k26361o/arm64-v8a",
+		"build" : "/app/applet/app/.cxx/Debug/5k26361o/armeabi-v7a",
 		"source" : "/app/applet/app/src/main/cpp"
 	},
 	"version" : 

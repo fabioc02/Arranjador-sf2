@@ -55,15 +55,17 @@ class SoundFontSynthEngine(
         var sampleBuffer: SampleBuffer? = null
 
         var samplePos = 0.0
+        var baseStepRate = 1.0
         var stepRate = 1.0
+        var isSustainedByPedal = false
 
         var isLooped = false
         var loopStart = 0
         var loopEnd = 0
 
-        var gainL = 0.7f
-        var gainR = 0.7f
-        var reverbSend = 0.3f
+        var gainL = 0.90f
+        var gainR = 0.90f
+        var reverbSend = 0.35f
         var chorusSend = 0.0f
 
         var envState = EnvState.IDLE
@@ -83,6 +85,7 @@ class SoundFontSynthEngine(
             active = false
             envState = EnvState.IDLE
             sampleBuffer = null
+            isSustainedByPedal = false
         }
     }
 
@@ -93,13 +96,16 @@ class SoundFontSynthEngine(
         var bankMsb: Int = 0
         var bankLsb: Int = 0
         var program: Int = 0
-        var volume: Float = 0.8f // CC 7
+        var volume: Float = 1.0f // CC 7 defaults to full scale (100%)
         var pan: Float = 0.0f // CC 10: -1.0f to +1.0f
         var expression: Float = 1.0f // CC 11
+        var modulation: Float = 0.0f // CC 1: 0.0f to 1.0f
+        var sustainPedal: Boolean = false // CC 64
         var reverbSend: Float = 0.35f // CC 91
         var chorusSend: Float = 0.0f // CC 93
         var dspSend: Float = 0.0f // CC 94
         var pitchBendSemitones: Float = 0.0f
+        var currentVibratoOffset: Float = 0.0f
         var isDrumChannel: Boolean = false
         var activePreset: SoundFontPreset? = null
         var assignedSoundFontVoice: com.example.domain.soundfont.model.SoundFontVoice? = null
@@ -113,17 +119,22 @@ class SoundFontSynthEngine(
 
     /**
      * Directly binds a channel to a specific SoundFont instrument (e.g. Triton VST preset).
-     * Protects this channel against being overwritten by Yamaha style Program Changes.
+     * Protected against missing or corrupt presets (e.g. EXB banks).
      */
     fun setChannelVoice(channel: Int, voice: com.example.domain.soundfont.model.SoundFontVoice?) {
         val ch = channel and 0x0F
         channels[ch].assignedSoundFontVoice = voice
         if (voice != null) {
-            val meta = repository.getCatalogMetadata(voice.filePath)
-            if (meta != null) {
-                channels[ch].activePreset = repository.getOrLoadPreset(meta, voice.bank, voice.program)
-            } else {
-                channels[ch].activePreset = null
+            try {
+                val meta = repository.getCatalogMetadata(voice.filePath)
+                if (meta != null) {
+                    channels[ch].activePreset = repository.getOrLoadPreset(meta, voice.bank, voice.program)
+                } else {
+                    channels[ch].activePreset = repository.defaultPreset
+                }
+            } catch (t: Throwable) {
+                android.util.Log.e("SoundFontSynthEngine", "Error setting voice ${voice.name} on ch $ch: ${t.message}")
+                channels[ch].activePreset = repository.defaultPreset
             }
         } else {
             updateChannelPreset(ch)
@@ -323,10 +334,12 @@ class SoundFontSynthEngine(
         val fineTuneCents = (zone?.fineTuneCents ?: 0) + (sample?.tuningCents ?: 0)
         val coarseTune = zone?.coarseTuneSemitones ?: 0
 
-        val totalPitchOffset = (note - rootKey) + coarseTune + (fineTuneCents / 100.0f) + state.pitchBendSemitones + drumPitchOffset
+        val totalPitchOffset = (note - rootKey) + coarseTune + (fineTuneCents / 100.0f) + drumPitchOffset
         val sampleNativeRate = sample?.sampleRate?.toDouble() ?: 44100.0
-        val pitchRatio = Math.pow(2.0, totalPitchOffset / 12.0)
-        voice.stepRate = (sampleNativeRate / sampleRateF) * pitchRatio
+        val baseRatio = Math.pow(2.0, totalPitchOffset / 12.0)
+        voice.baseStepRate = (sampleNativeRate / sampleRateF) * baseRatio
+        val totalBend = state.pitchBendSemitones + state.currentVibratoOffset
+        voice.stepRate = voice.baseStepRate * Math.pow(2.0, totalBend / 12.0)
 
         voice.isLooped = (zone?.loopMode == LoopMode.CONTINUOUS_LOOP) || (sample?.isLooped == true)
         voice.loopStart = sample?.loopStart ?: 0
@@ -337,22 +350,23 @@ class SoundFontSynthEngine(
         val netPan = (state.pan + zonePan + drumPanOffset).coerceIn(-1.0f, 1.0f)
         val volVelGain = (velocity / 127.0f) * state.volume * state.expression * drumLevelGain
 
-        // Equal-power stereo panning
+        // Equal-power stereo panning with unity center gain and line-level boost
         val panAngle = (netPan + 1.0f) * (Math.PI / 4.0) // 0 to pi/2
-        voice.gainL = (Math.cos(panAngle) * volVelGain).toFloat() * 0.45f
-        voice.gainR = (Math.sin(panAngle) * volVelGain).toFloat() * 0.45f
+        val lineLevelBoost = 1.90f
+        voice.gainL = (Math.cos(panAngle) * volVelGain * lineLevelBoost).toFloat()
+        voice.gainR = (Math.sin(panAngle) * volVelGain * lineLevelBoost).toFloat()
 
         // Boost for single-channel stereo sample (if Left-only or Right-only)
         if (sample?.stereoChannel == StereoChannel.LEFT) {
-            voice.gainL *= 1.3f
+            voice.gainL *= 1.4f
             voice.gainR *= 0.1f
         } else if (sample?.stereoChannel == StereoChannel.RIGHT) {
             voice.gainL *= 0.1f
-            voice.gainR *= 1.3f
+            voice.gainR *= 1.4f
         }
 
-        voice.reverbSend = state.reverbSend
-        voice.chorusSend = state.chorusSend
+        voice.reverbSend = state.reverbSend + (state.dspSend * 0.4f)
+        voice.chorusSend = state.chorusSend + (state.dspSend * 0.3f)
 
         // Envelope setup
         val attackSec = zone?.attackSec ?: 0.002f
@@ -370,9 +384,14 @@ class SoundFontSynthEngine(
 
     override fun noteOff(channel: Int, note: Int) {
         val ch = channel and 0x0F
+        val state = channels[ch]
         for (v in voices) {
             if (v.active && v.channel == ch && v.note == note) {
-                v.release()
+                if (state.sustainPedal) {
+                    v.isSustainedByPedal = true
+                } else {
+                    v.release()
+                }
             }
         }
     }
@@ -380,16 +399,45 @@ class SoundFontSynthEngine(
     override fun pitchBend(channel: Int, value: Int) {
         val ch = channel and 0x0F
         // 8192 is center, range -2 to +2 semitones
-        channels[ch].pitchBendSemitones = ((value - 8192) / 8192.0f) * 2.0f
+        val semitones = ((value - 8192) / 8192.0f) * 2.0f
+        val state = channels[ch]
+        state.pitchBendSemitones = semitones
+
+        // Real-time pitch update for all currently active voices on this channel!
+        val totalBend = semitones + state.currentVibratoOffset
+        val ratio = Math.pow(2.0, totalBend / 12.0)
+        for (i in 0 until polyphonyLimit) {
+            val v = voices[i]
+            if (v.active && v.channel == ch) {
+                v.stepRate = v.baseStepRate * ratio
+            }
+        }
     }
 
     override fun controlChange(channel: Int, controller: Int, value: Int) {
         val ch = channel and 0x0F
         val state = channels[ch]
         when (controller) {
+            1 -> {
+                // Modulation Wheel (CC 1)
+                state.modulation = value / 127.0f
+            }
             7 -> state.volume = value / 127.0f // Volume
             10 -> state.pan = ((value - 64) / 64.0f).coerceIn(-1.0f, 1.0f) // Pan
             11 -> state.expression = value / 127.0f // Expression
+            64 -> {
+                // Sustain Pedal (CC 64)
+                state.sustainPedal = value >= 64
+                if (!state.sustainPedal) {
+                    for (i in 0 until polyphonyLimit) {
+                        val v = voices[i]
+                        if (v.active && v.channel == ch && v.isSustainedByPedal) {
+                            v.isSustainedByPedal = false
+                            v.release()
+                        }
+                    }
+                }
+            }
             91 -> state.reverbSend = value / 127.0f // Reverb Send
             93 -> state.chorusSend = value / 127.0f // Chorus Send
             94 -> state.dspSend = value / 127.0f // DSP Send
@@ -422,6 +470,8 @@ class SoundFontSynthEngine(
         }
     }
 
+    private var lfoPhase = 0.0
+
     override fun render(buffer: FloatArray, offset: Int, frameCount: Int) {
         // Clear working buffers
         internalBufferL.fill(0f, 0, frameCount)
@@ -431,10 +481,25 @@ class SoundFontSynthEngine(
         choSendL.fill(0f, 0, frameCount)
         choSendR.fill(0f, 0, frameCount)
 
+        // Advance modulation LFO at 5.5 Hz vibrato rate
+        val lfoDelta = (5.5 / sampleRateF) * frameCount
+        lfoPhase = (lfoPhase + lfoDelta) % 1.0
+        val lfoSine = Math.sin(lfoPhase * 2.0 * Math.PI).toFloat()
+
+        for (c in 0 until 16) {
+            val chState = channels[c]
+            chState.currentVibratoOffset = if (chState.modulation > 0.001f) lfoSine * chState.modulation * 0.5f else 0.0f
+        }
+
         // Render active voices up to polyphonyLimit
         for (i in 0 until polyphonyLimit) {
             val voice = voices[i]
             if (!voice.active) continue
+            val chState = channels[voice.channel]
+            if (chState.modulation > 0.001f) {
+                val totalBend = chState.pitchBendSemitones + chState.currentVibratoOffset
+                voice.stepRate = voice.baseStepRate * Math.pow(2.0, totalBend / 12.0)
+            }
             renderVoice(voice, frameCount)
         }
 
@@ -551,6 +616,60 @@ class SoundFontSynthEngine(
     override fun reset() {
         for (v in voices) {
             v.stop()
+        }
+    }
+
+    fun setReverbType(name: String, msb: Int = 0, lsb: Int = 0) {
+        when {
+            name.contains("Hall", ignoreCase = true) -> {
+                reverb.roomSize = 0.88f
+                reverb.damp = 0.20f
+                reverb.wetLevel = 0.42f
+            }
+            name.contains("Room", ignoreCase = true) -> {
+                reverb.roomSize = 0.60f
+                reverb.damp = 0.45f
+                reverb.wetLevel = 0.30f
+            }
+            name.contains("Stage", ignoreCase = true) -> {
+                reverb.roomSize = 0.75f
+                reverb.damp = 0.30f
+                reverb.wetLevel = 0.38f
+            }
+            name.contains("Plate", ignoreCase = true) -> {
+                reverb.roomSize = 0.92f
+                reverb.damp = 0.12f
+                reverb.wetLevel = 0.45f
+            }
+            name.contains("No Effect", ignoreCase = true) -> {
+                reverb.wetLevel = 0.0f
+            }
+        }
+    }
+
+    fun setChorusType(name: String, msb: Int = 0, lsb: Int = 0) {
+        when {
+            name.contains("Flanger", ignoreCase = true) -> {
+                chorus.rateHz = 0.35f
+                chorus.depthMs = 2.0f
+                chorus.feedback = 0.55f
+                chorus.wetMix = 0.50f
+            }
+            name.contains("Symphonic", ignoreCase = true) || name.contains("Celeste", ignoreCase = true) -> {
+                chorus.rateHz = 1.15f
+                chorus.depthMs = 4.5f
+                chorus.feedback = 0.15f
+                chorus.wetMix = 0.45f
+            }
+            name.contains("Chorus", ignoreCase = true) -> {
+                chorus.rateHz = 0.85f
+                chorus.depthMs = 3.2f
+                chorus.feedback = 0.25f
+                chorus.wetMix = 0.40f
+            }
+            name.contains("No Effect", ignoreCase = true) -> {
+                chorus.wetMix = 0.0f
+            }
         }
     }
 

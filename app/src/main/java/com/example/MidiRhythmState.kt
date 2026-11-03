@@ -196,11 +196,12 @@ object MidiRhythmState {
                 }
             }
 
+            val defaultDuration = if (track.isDrumTrack) 480 else 240
             val note = RecordedNote(
                 tick = tick,
                 note = data1,
                 velocity = data2,
-                durationTicks = 1,
+                durationTicks = defaultDuration,
                 timestampMs = timestampNs / 1_000_000L,
                 originalTick = tick,
                 timestampNs = timestampNs
@@ -211,7 +212,7 @@ object MidiRhythmState {
                 if (previousNote != null) {
                     var dur = currentTick - previousNote.tick
                     if (dur < 0) dur += totalTicks
-                    if (dur == 0) dur = 1
+                    if (dur < 120) dur = 120
                     previousNote.durationTicks = dur
                 }
                 activeRecordingNotes[noteIndex] = note
@@ -227,9 +228,10 @@ object MidiRhythmState {
                 if (activeNote != null) {
                     activeRecordingNotes[noteIndex] = null
                     val totalTicks = getTotalTicks()
+                    val minDur = if (track.isDrumTrack) 480 else 120
                     var duration = currentTick - activeNote.tick
                     if (duration < 0) duration += totalTicks
-                    if (duration == 0) duration = 1
+                    if (duration < minDur) duration = minDur
                     activeNote.durationTicks = duration
                     track.notifyNoteModified()
                 }

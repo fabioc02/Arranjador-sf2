@@ -89,8 +89,30 @@ class CasmParser {
                                      csegData[ctb2Idx+2] == 'b'.code.toByte() && csegData[ctb2Idx+3] == '2'.code.toByte()
                         val isCtab = csegData[ctb2Idx] == 'C'.code.toByte() && csegData[ctb2Idx+1] == 't'.code.toByte() &&
                                      csegData[ctb2Idx+2] == 'a'.code.toByte() && csegData[ctb2Idx+3] == 'b'.code.toByte()
+                        val isCntt = csegData[ctb2Idx] == 'C'.code.toByte() && csegData[ctb2Idx+1] == 'n'.code.toByte() &&
+                                     csegData[ctb2Idx+2] == 't'.code.toByte() && csegData[ctb2Idx+3] == 't'.code.toByte()
                         
-                        if (isCtb2 || isCtab) {
+                        if (isCntt) {
+                            val chunkSize = getInt(csegData, ctb2Idx + 4)
+                            val endIdx = minOf(ctb2Idx + 8 + chunkSize, csegData.size)
+                            val payload = csegData.copyOfRange(ctb2Idx + 8, endIdx)
+                            if (payload.size >= 2) {
+                                val srcCh = payload[0].toUByte().toInt()
+                                val rawNtt = payload[1].toUByte().toInt()
+                                val isBassOn = (rawNtt and 0x80) != 0
+                                val overrideNtt = NTT.fromId(rawNtt)
+                                
+                                val chIdx = ctb2List.indexOfFirst { it.sourceChannel == srcCh }
+                                if (chIdx >= 0) {
+                                    val old = ctb2List[chIdx]
+                                    ctb2List[chIdx] = old.copy(
+                                        ntt = overrideNtt,
+                                        isBassOn = isBassOn
+                                    )
+                                }
+                            }
+                            ctb2Idx += 8 + chunkSize
+                        } else if (isCtb2 || isCtab) {
                             val chunkSize = getInt(csegData, ctb2Idx + 4)
                             val endIdx = minOf(ctb2Idx + 8 + chunkSize, csegData.size)
                             val payload = csegData.copyOfRange(ctb2Idx + 8, endIdx)

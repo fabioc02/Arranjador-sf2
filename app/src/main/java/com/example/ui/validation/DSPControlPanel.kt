@@ -117,6 +117,7 @@ fun DSPControlPanel() {
                                     selectedReverb = type
                                     expandedReverb = false
                                     sendReverbType(type.msb, type.lsb)
+                                    MidiState.soundFontSynth.setReverbType(type.name, type.msb.toInt(), type.lsb.toInt())
                                 }
                             )
                         }
@@ -146,6 +147,7 @@ fun DSPControlPanel() {
                                     selectedChorus = type
                                     expandedChorus = false
                                     sendChorusType(type.msb, type.lsb)
+                                    MidiState.soundFontSynth.setChorusType(type.name, type.msb.toInt(), type.lsb.toInt())
                                 }
                             )
                         }

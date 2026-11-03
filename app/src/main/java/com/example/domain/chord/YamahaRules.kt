@@ -201,8 +201,8 @@ object YamahaRuleFactory {
     fun getRule(ntr: NTR, ntt: NTT): YamahaRule {
         if (ntr == NTR.BYPASS || ntt == NTT.BYPASS) return bypassRule
         if (ntt == NTT.MELODY) return melodyRule
-        // If it's a bass table, or explicitly requested
-        if (ntt == NTT.BASS || ntt == NTT.DORIAN) return bassRule
+        // Yamaha Bass Table is NTT 0x03 (BASS) or 0x08 (NATURAL_MINOR_5TH)
+        if (ntt == NTT.BASS || ntt == NTT.NATURAL_MINOR_5TH) return bassRule
         if (ntr == NTR.GUITAR) return guitarRule
         
         return when (ntr) {

@@ -1,0 +1,246 @@
+{
+  "kit_name": "Standard_Kit_2",
+  "cc0": 63,
+  "cc32": 1,
+  "pc": 36,
+  "samples_count": 47,
+  "bit_depth": 16,
+  "sample_rate": 44100,
+  "pieces": [
+    {
+      "note": 35,
+      "name": "Acoustic_Bass_Drum",
+      "file": "samples/N035_Acoustic_Bass_Drum.wav"
+    },
+    {
+      "note": 36,
+      "name": "Bass_Drum_1",
+      "file": "samples/N036_Bass_Drum_1.wav"
+    },
+    {
+      "note": 37,
+      "name": "Side_Stick",
+      "file": "samples/N037_Side_Stick.wav"
+    },
+    {
+      "note": 38,
+      "name": "Acoustic_Snare",
+      "file": "samples/N038_Acoustic_Snare.wav"
+    },
+    {
+      "note": 39,
+      "name": "Hand_Clap",
+      "file": "samples/N039_Hand_Clap.wav"
+    },
+    {
+      "note": 40,
+      "name": "Electric_Snare",
+      "file": "samples/N040_Electric_Snare.wav"
+    },
+    {
+      "note": 41,
+      "name": "Low_Floor_Tom",
+      "file": "samples/N041_Low_Floor_Tom.wav"
+    },
+    {
+      "note": 42,
+      "name": "Closed_HiHat",
+      "file": "samples/N042_Closed_HiHat.wav"
+    },
+    {
+      "note": 43,
+      "name": "High_Floor_Tom",
+      "file": "samples/N043_High_Floor_Tom.wav"
+    },
+    {
+      "note": 44,
+      "name": "Pedal_HiHat",
+      "file": "samples/N044_Pedal_HiHat.wav"
+    },
+    {
+      "note": 45,
+      "name": "Low_Tom",
+      "file": "samples/N045_Low_Tom.wav"
+    },
+    {
+      "note": 46,
+      "name": "Open_HiHat",
+      "file": "samples/N046_Open_HiHat.wav"
+    },
+    {
+      "note": 47,
+      "name": "Low_Mid_Tom",
+      "file": "samples/N047_Low_Mid_Tom.wav"
+    },
+    {
+      "note": 48,
+      "name": "Hi_Mid_Tom",
+      "file": "samples/N048_Hi_Mid_Tom.wav"
+    },
+    {
+      "note": 49,
+      "name": "Crash_Cymbal_1",
+      "file": "samples/N049_Crash_Cymbal_1.wav"
+    },
+    {
+      "note": 50,
+      "name": "High_Tom",
+      "file": "samples/N050_High_Tom.wav"
+    },
+    {
+      "note": 51,
+      "name": "Ride_Cymbal_1",
+      "file": "samples/N051_Ride_Cymbal_1.wav"
+    },
+    {
+      "note": 52,
+      "name": "Chinese_Cymbal",
+      "file": "samples/N052_Chinese_Cymbal.wav"
+    },
+    {
+      "note": 53,
+      "name": "Ride_Bell",
+      "file": "samples/N053_Ride_Bell.wav"
+    },
+    {
+      "note": 54,
+      "name": "Tambourine",
+      "file": "samples/N054_Tambourine.wav"
+    },
+    {
+      "note": 55,
+      "name": "Splash_Cymbal",
+      "file": "samples/N055_Splash_Cymbal.wav"
+    },
+    {
+      "note": 56,
+      "name": "Cowbell",
+      "file": "samples/N056_Cowbell.wav"
+    },
+    {
+      "note": 57,
+      "name": "Crash_Cymbal_2",
+      "file": "samples/N057_Crash_Cymbal_2.wav"
+    },
+    {
+      "note": 58,
+      "name": "Vibraslap",
+      "file": "samples/N058_Vibraslap.wav"
+    },
+    {
+      "note": 59,
+      "name": "Ride_Cymbal_2",
+      "file": "samples/N059_Ride_Cymbal_2.wav"
+    },
+    {
+      "note": 60,
+      "name": "Hi_Bongo",
+      "file": "samples/N060_Hi_Bongo.wav"
+    },
+    {
+      "note": 61,
+      "name": "Low_Bongo",
+      "file": "samples/N061_Low_Bongo.wav"
+    },
+    {
+      "note": 62,
+      "name": "Mute_Hi_Conga",
+      "file": "samples/N062_Mute_Hi_Conga.wav"
+    },
+    {
+      "note": 63,
+      "name": "Open_Hi_Conga",
+      "file": "samples/N063_Open_Hi_Conga.wav"
+    },
+    {
+      "note": 64,
+      "name": "Low_Conga",
+      "file": "samples/N064_Low_Conga.wav"
+    },
+    {
+      "note": 65,
+      "name": "High_Timbale",
+      "file": "samples/N065_High_Timbale.wav"
+    },
+    {
+      "note": 66,
+      "name": "Low_Timbale",
+      "file": "samples/N066_Low_Timbale.wav"
+    },
+    {
+      "note": 67,
+      "name": "High_Agogo",
+      "file": "samples/N067_High_Agogo.wav"
+    },
+    {
+      "note": 68,
+      "name": "Low_Agogo",
+      "file": "samples/N068_Low_Agogo.wav"
+    },
+    {
+      "note": 69,
+      "name": "Cabasa",
+      "file": "samples/N069_Cabasa.wav"
+    },
+    {
+      "note": 70,
+      "name": "Maracas",
+      "file": "samples/N070_Maracas.wav"
+    },
+    {
+      "note": 71,
+      "name": "Short_Whistle",
+      "file": "samples/N071_Short_Whistle.wav"
+    },
+    {
+      "note": 72,
+      "name": "Long_Whistle",
+      "file": "samples/N072_Long_Whistle.wav"
+    },
+    {
+      "note": 73,
+      "name": "Short_Guiro",
+      "file": "samples/N073_Short_Guiro.wav"
+    },
+    {
+      "note": 74,
+      "name": "Long_Guiro",
+      "file": "samples/N074_Long_Guiro.wav"
+    },
+    {
+      "note": 75,
+      "name": "Claves",
+      "file": "samples/N075_Claves.wav"
+    },
+    {
+      "note": 76,
+      "name": "Hi_Wood_Block",
+      "file": "samples/N076_Hi_Wood_Block.wav"
+    },
+    {
+      "note": 77,
+      "name": "Low_Wood_Block",
+      "file": "samples/N077_Low_Wood_Block.wav"
+    },
+    {
+      "note": 78,
+      "name": "Mute_Cuica",
+      "file": "samples/N078_Mute_Cuica.wav"
+    },
+    {
+      "note": 79,
+      "name": "Open_Cuica",
+      "file": "samples/N079_Open_Cuica.wav"
+    },
+    {
+      "note": 80,
+      "name": "Mute_Triangle",
+      "file": "samples/N080_Mute_Triangle.wav"
+    },
+    {
+      "note": 81,
+      "name": "Open_Triangle",
+      "file": "samples/N081_Open_Triangle.wav"
+    }
+  ]
+}
